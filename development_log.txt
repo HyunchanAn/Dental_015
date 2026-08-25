@@ -6,3 +6,4 @@
 - README.md 작성: 프로젝트 개요, 설치 및 실행 방법, 표준 배지 배치 완결
 - GitHub 원격 저장소 (HyunchanAn/Dental_015) 생성 및 퍼블리시 작업 추진
 - 다음 작업 인계: Dental_Panoramic_Reader / 백엔드 API 게이트웨이와의 REST API 엔드포인트 세부 연동 및 DICOMViewer/Image Canvas 컴포넌트 개발
+- Dental MSA Presentation Layer 이행 및 API 계약 계획서 검토 수락 및 기술 질의서 제출 완료

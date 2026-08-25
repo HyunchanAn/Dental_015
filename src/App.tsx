@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Activity, Stethoscope, FileText, Layers, RefreshCw } from 'lucide-react';
+import { Activity, Stethoscope, Layers, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { PanoramaCanvasViewer } from './components/PanoramaCanvasViewer';
+import { mockFinalReport } from './mocks/mockFinalReport';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis' | 'settings'>('dashboard');
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       {/* Top Header */}
       <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -19,7 +21,7 @@ export const App: React.FC = () => {
         </div>
         <div className="flex items-center space-x-4">
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            MSA Gateway Connected
+            MSA Gateway Protocol v1 (Normalized BBox)
           </span>
         </div>
       </header>
@@ -55,25 +57,32 @@ export const App: React.FC = () => {
         {/* Workspace */}
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-5xl mx-auto space-y-6">
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-2">Dental MSA Frontend Core</h2>
-              <p className="text-sm text-slate-400 leading-relaxed mb-4">
-                Dental_015 모듈은 Dental_001부터 Dental_014까지의 개별 AI 마이크로서비스 및 Dental_Panoramic_Reader 백엔드 서비스를 통합 연동하기 위한 React + TypeScript 기반 임상 프론트엔드 플랫폼입니다.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Target Services</div>
-                  <div className="text-2xl font-bold text-sky-400">14 MSA</div>
-                </div>
-                <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Tech Stack</div>
-                  <div className="text-lg font-semibold text-emerald-400">Vite + React + TS</div>
-                </div>
-                <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
-                  <div className="text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Status</div>
-                  <div className="text-lg font-semibold text-amber-400">v0.1.0 Initialized</div>
-                </div>
+            {/* Header info */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Clinical Panoramic Viewer</h2>
+                <p className="text-sm text-slate-400">
+                  Report ID: {mockFinalReport.reportId} | Patient: {mockFinalReport.patientId}
+                </p>
               </div>
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <span className="text-sm text-emerald-400 font-medium">SSOT Mock Validated</span>
+              </div>
+            </div>
+
+            {/* Canvas Viewer */}
+            <PanoramaCanvasViewer reportData={mockFinalReport} />
+
+            {/* Findings Summary */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-4">
+              <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
+                <span>Diagnostic Summary</span>
+              </h3>
+              <p className="text-sm text-slate-300 leading-relaxed bg-slate-900 p-4 rounded-lg border border-slate-800">
+                {mockFinalReport.summary}
+              </p>
             </div>
           </div>
         </main>
