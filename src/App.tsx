@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Stethoscope, Layers, CheckCircle2, ShieldAlert, Upload, Loader2, AlertCircle } from 'lucide-react';
+import { Activity, Stethoscope, Layers, CheckCircle2, ShieldAlert, Upload, Loader2, AlertCircle, Eye, EyeOff, Info } from 'lucide-react';
 import { PanoramaCanvasViewer } from './components/PanoramaCanvasViewer';
 import { mockFinalReport } from './mocks/mockFinalReport';
 import { checkHealth, inferPanorama } from './api/client';
@@ -16,8 +16,10 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [reportData, setReportData] = useState<FinalReportResponse>(mockFinalReport);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Dual threshold toggle: show under-observation / suspected lesions (20% <= conf < 45%)
+  const [showSuspected, setShowSuspected] = useState<boolean>(false);
 
-  // Poll Health status
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -62,7 +64,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-12">
       {/* Top Header */}
       <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -154,22 +156,42 @@ export const App: React.FC = () => {
               )}
             </div>
 
-            {/* Header info */}
-            <div className="flex items-center justify-between">
+            {/* Header info & Dual Threshold Controls */}
+            <div className="flex items-center justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
               <div>
-                <h2 className="text-2xl font-bold text-white">Clinical Panoramic Viewer</h2>
-                <p className="text-sm text-slate-400">
+                <h2 className="text-xl font-bold text-white">Clinical Panoramic Viewer</h2>
+                <p className="text-xs text-slate-400">
                   Report ID: {reportData.reportId} | Patient: {reportData.patientId}
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <span className="text-sm text-emerald-400 font-medium">SSOT Schema Validated</span>
+
+              {/* Dual Threshold Toggle Button */}
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setShowSuspected(!showSuspected)}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    showSuspected
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  {showSuspected ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  <span>Suspected Lesions Layer (20%~45%)</span>
+                </button>
+
+                <div className="flex items-center space-x-1.5 text-xs text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Clinical Defense Active</span>
+                </div>
               </div>
             </div>
 
             {/* Canvas Viewer */}
-            <PanoramaCanvasViewer imageUrl={imagePreview || undefined} reportData={reportData} />
+            <PanoramaCanvasViewer 
+              imageUrl={imagePreview || undefined} 
+              reportData={reportData}
+              showSuspected={showSuspected}
+            />
 
             {/* Findings Summary */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-4">
@@ -184,6 +206,14 @@ export const App: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Mandatory Disclaimer Footer Banner */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 py-2 px-6 text-center text-xs text-amber-400/90 flex items-center justify-center space-x-2 z-50">
+        <Info className="w-4 h-4 flex-shrink-0" />
+        <span>
+          본 분석 결과는 진단 보조용 스크리닝 참고 자료이며, 확진 및 개별 치아 처치는 치과의사 전문의의 실체 임상 검진을 따라야 합니다.
+        </span>
+      </footer>
     </div>
   );
 };

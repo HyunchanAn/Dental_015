@@ -4,6 +4,7 @@ export interface ImageMetadata {
   width: number;
   height: number;
   filename: string;
+  midline_x?: number;
 }
 
 export interface NormalizedBBox {
@@ -14,21 +15,37 @@ export interface NormalizedBBox {
   h: number; // height
   confidence: number;
   label: string;
-  toothNumber?: number; // FDI dental notation (e.g. 11, 21, 46)
+  toothNumber?: number | null; // FDI dental notation (e.g. 11, 21, 46)
+  fdi_label?: string;
+  relative_label?: string;
+  uncertain_fdi?: boolean;
+  confidence_level?: 'HIGH' | 'SUSPECTED';
 }
 
 export interface NormalizedPolygon {
   points: Array<{ x: number; y: number }>; // Each x, y normalized 0.0 ~ 1.0
   confidence: number;
   label: string;
-  toothNumber?: number;
+  toothNumber?: number | null;
+  confidence_level?: 'HIGH' | 'SUSPECTED';
+}
+
+export interface MissingTeethAnalysis {
+  verified_missing: number[];
+  uncertain_missing: number[];
+  details?: Array<{
+    fdi: number;
+    status: string;
+    r_gap?: number;
+    reason?: string;
+  }>;
 }
 
 export interface DiagnosticFindings {
   caries?: NormalizedBBox[];
   boneLoss?: NormalizedPolygon[];
   periapicalLesions?: NormalizedBBox[];
-  cystsAndTumors?: NormalizedBBox[];
+  missingTeeth?: MissingTeethAnalysis;
   osteoporosisRisk?: {
     score: number;
     category: 'LOW' | 'MODERATE' | 'HIGH';
