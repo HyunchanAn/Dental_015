@@ -14,23 +14,23 @@ export const mockFinalReport: FinalReportResponse = {
   findings: {
     caries: [
       {
-        x: 0.355,
-        y: 0.53,
-        w: 0.04,
-        h: 0.06,
+        x: 0.368,
+        y: 0.470,
+        w: 0.033,
+        h: 0.055,
         confidence: 0.92,
         label: "Dental Caries",
-        toothNumber: 14, // Corrected from 16 to 14 (Upper Right 1st Premolar)
+        toothNumber: 14, // Anatomically calibrated to #14 crown in sample_panorama.png
         fdi_label: "FDI-14",
       },
       {
-        x: 0.615,
-        y: 0.50,
-        w: 0.038,
-        h: 0.05,
+        x: 0.589,
+        y: 0.470,
+        w: 0.033,
+        h: 0.058,
         confidence: 0.88,
         label: "Dental Caries",
-        toothNumber: 24, // Corrected from 26 to 24 (Upper Left 1st Premolar)
+        toothNumber: 24, // Anatomically calibrated to #24 crown in sample_panorama.png
         fdi_label: "FDI-24",
       },
     ],

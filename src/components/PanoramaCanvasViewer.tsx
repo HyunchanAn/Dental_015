@@ -148,9 +148,14 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
             ctx.lineWidth = 1.5;
           }
 
+          let minX = Infinity;
+          let minY = Infinity;
+
           poly.points.forEach((pt, idx) => {
             const px = offsetX + pt.x * drawWidth;
             const py = offsetY + pt.y * drawHeight;
+            if (px < minX) minX = px;
+            if (py < minY) minY = py;
             if (idx === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           });
@@ -159,6 +164,23 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
 
           ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
           ctx.fill();
+
+          // Bone Loss Label Badge with Tooth Number and Confidence
+          ctx.setLineDash([]);
+          const confPercent = (poly.confidence * 100).toFixed(0);
+          const tagText = isHighConf
+            ? (poly.toothNumber ? `#${poly.toothNumber} BoneLoss ${confPercent}%` : `BoneLoss ${confPercent}%`)
+            : (poly.toothNumber ? `Suspected #${poly.toothNumber} ${confPercent}%` : `Suspected ${confPercent}%`);
+
+          ctx.font = 'bold 12px sans-serif';
+          const textWidth = ctx.measureText(tagText).width;
+
+          ctx.fillStyle = isHighConf ? '#3b82f6' : '#f59e0b';
+          const badgeY = minY > 20 ? minY - 20 : minY;
+          ctx.fillRect(minX, badgeY, textWidth + 10, 18);
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(tagText, minX + 5, badgeY + 13);
         });
       }
     };
