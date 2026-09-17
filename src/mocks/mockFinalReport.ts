@@ -62,6 +62,47 @@ export const mockFinalReport: FinalReportResponse = {
     osteoporosisRisk: {
       score: 0.23,
       category: "LOW",
+      status: "MOCK_SCREENING",
+    },
+    clinicalSynthesis: {
+      treatmentQueue: [
+        {
+          priority: "EMERGENT",
+          fdi: 34,
+          condition: "Periapical Lesion",
+          recommendation: "FDI #34 치근단 병소: 정밀 방사선 및 근관 치료(Endodontics) 우선 고려 요망.",
+        },
+        {
+          priority: "HIGH",
+          fdi: 14,
+          condition: "Dental Caries",
+          recommendation: "FDI #14 치아 우식증: 와동 형성 및 보철/수복(Restoration) 치료 권고.",
+        },
+        {
+          priority: "HIGH",
+          fdi: 24,
+          condition: "Dental Caries",
+          recommendation: "FDI #24 치아 우식증: 와동 형성 및 보철/수복(Restoration) 치료 권고.",
+        },
+        {
+          priority: "MODERATE",
+          fdi: 46,
+          condition: "Alveolar Bone Loss",
+          recommendation: "FDI #46 치조골 흡수: 치주낭 계측 및 치근활택술/치주치료 권고.",
+        },
+        {
+          priority: "PREVENTIVE",
+          fdi: null,
+          condition: "General Periodontal Care",
+          recommendation: "정기 치주 스케일링 및 6개월 단위 임상 파노라마 추적 관찰 추천.",
+        },
+      ],
+      odontogram: {
+        "14": { status: "Caries", label: "Caries" },
+        "24": { status: "Caries", label: "Caries" },
+        "34": { status: "Periapical", label: "Periapical" },
+        "46": { status: "BoneLoss", label: "BoneLoss" },
+      },
     },
   },
   summary: "상악 소구치(#14, #24) 우식 의심 소견. 하악 좌측 제1소구치(#34) 치근단 병소 및 하악 우측(#46) 치조골 흡수 관찰.",

@@ -41,6 +41,24 @@ export interface MissingTeethAnalysis {
   }>;
 }
 
+export interface TreatmentQueueItem {
+  priority: 'EMERGENT' | 'HIGH' | 'MODERATE' | 'PREVENTIVE';
+  fdi?: number | null;
+  condition: string;
+  recommendation: string;
+}
+
+export interface OdontogramToothStatus {
+  status: 'Sound' | 'Caries' | 'Periapical' | 'BoneLoss' | 'Missing' | 'Suspected';
+  label: string;
+  details?: string;
+}
+
+export interface ClinicalSynthesis {
+  treatmentQueue: TreatmentQueueItem[];
+  odontogram: Record<string, OdontogramToothStatus>;
+}
+
 export interface DiagnosticFindings {
   caries?: NormalizedBBox[];
   boneLoss?: NormalizedPolygon[];
@@ -49,7 +67,9 @@ export interface DiagnosticFindings {
   osteoporosisRisk?: {
     score: number;
     category: 'LOW' | 'MODERATE' | 'HIGH';
+    status?: string;
   };
+  clinicalSynthesis?: ClinicalSynthesis;
 }
 
 export interface FinalReportResponse {

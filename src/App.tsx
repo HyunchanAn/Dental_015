@@ -25,7 +25,9 @@ export const App: React.FC = () => {
     { id: 'Dental_012', name: '치근단 병소 (음성증강)', type: 'YOLO11s', status: 'ONLINE', weights: 'best.onnx', version: 'mAP 73.7%' },
     { id: 'Dental_010', name: '결손치 식별 및 갭', type: 'Heuristic', status: 'ONLINE', weights: 'Rule-based', version: 'Dynamic Mid' },
     { id: 'Dental_003', name: '치조골 소실 계측', type: 'Masking', status: 'ONLINE', weights: 'Core', version: 'v1.0' },
-    { id: 'Dental_013', name: '치과 수복물 분류', type: 'Classifier', status: 'STANDBY', weights: 'Restoration ONNX', version: 'v1.0' },
+    { id: 'Dental_009', name: '매복치 난이도 분석', type: 'Winter Cls', status: 'ONLINE', weights: 'Geometry', version: 'v1.0' },
+    { id: 'Dental_013', name: '치과 수복물 분류', type: 'YOLOv8 Seg', status: 'ONLINE', weights: 'best_restoration_model.onnx', version: 'v1.0' },
+    { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'MCI (MOCK)', status: 'STANDBY', weights: 'Mock Baseline', version: 'v0.5 (MOCK)' },
   ]);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -96,6 +98,26 @@ export const App: React.FC = () => {
   const lowerLeftTeeth = [31, 32, 33, 34, 35, 36, 37, 38];
 
   const getToothStatus = (fdi: number) => {
+    // 1. Backend Clinical Synthesis SSOT Direct Binding
+    const synthesisStatus = reportData.findings.clinicalSynthesis?.odontogram?.[String(fdi)];
+    if (synthesisStatus) {
+      switch (synthesisStatus.status) {
+        case 'Missing':
+          return { label: 'Missing', color: 'bg-slate-800 text-slate-500 border-slate-700' };
+        case 'Periapical':
+          return { label: 'Periapical', color: 'bg-purple-950/60 text-purple-400 border-purple-800' };
+        case 'Caries':
+          return { label: 'Caries', color: 'bg-rose-950/60 text-rose-400 border-rose-800' };
+        case 'Suspected':
+          return { label: 'Suspected', color: 'bg-amber-950/60 text-amber-400 border-amber-800' };
+        case 'BoneLoss':
+          return { label: 'BoneLoss', color: 'bg-sky-950/60 text-sky-400 border-sky-800' };
+        default:
+          return { label: 'Sound', color: 'bg-emerald-950/40 text-emerald-400 border-emerald-900/60' };
+      }
+    }
+
+    // Fallback: Local synthesis
     const isMissing = verifiedMissing.includes(fdi);
     const hasPeriapical = reportData.findings.periapicalLesions?.some(p => p.toothNumber === fdi);
     const cariesItem = reportData.findings.caries?.find(c => c.toothNumber === fdi);
@@ -335,34 +357,75 @@ export const App: React.FC = () => {
                 <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 space-y-3">
                   <h3 className="text-sm font-semibold text-white flex items-center space-x-2">
                     <AlertTriangle className="w-4 h-4 text-amber-400" />
-                    <span>Clinical Treatment Priority Queue (치료 권고 우선순위 큐)</span>
+                    <span>Clinical Treatment Priority Queue (치료 권고 우선순위 큐 - SSOT 연동)</span>
                   </h3>
                   <div className="space-y-2">
-                    {periapicalCount > 0 && (
-                      <div className="p-3 bg-purple-950/30 border border-purple-800/60 rounded-lg flex items-center justify-between text-xs">
-                        <div className="flex items-center space-x-2 text-purple-300">
-                          <span className="px-1.5 py-0.5 rounded bg-purple-900 text-purple-200 font-bold text-[10px]">EMERGENT</span>
-                          <span>치근단 병소 발견 치아: 정밀 방사선 및 근관 치료(Endodontics) 우선 고려 요망.</span>
+                    {reportData.findings.clinicalSynthesis?.treatmentQueue ? (
+                      reportData.findings.clinicalSynthesis.treatmentQueue.map((item, idx) => {
+                        const isEmergent = item.priority === 'EMERGENT';
+                        const isHigh = item.priority === 'HIGH';
+                        const isModerate = item.priority === 'MODERATE';
+                        const badgeColor = isEmergent 
+                          ? 'bg-purple-900 text-purple-200' 
+                          : isHigh 
+                          ? 'bg-rose-900 text-rose-200' 
+                          : isModerate 
+                          ? 'bg-sky-900 text-sky-200' 
+                          : 'bg-slate-800 text-slate-300';
+                        const containerBg = isEmergent 
+                          ? 'bg-purple-950/30 border-purple-800/60 text-purple-300' 
+                          : isHigh 
+                          ? 'bg-rose-950/30 border-rose-800/60 text-rose-300' 
+                          : isModerate 
+                          ? 'bg-sky-950/30 border-sky-800/60 text-sky-300' 
+                          : 'bg-slate-900 border-slate-800 text-slate-400';
+                        const iconColor = isEmergent 
+                          ? 'text-purple-400' 
+                          : isHigh 
+                          ? 'text-rose-400' 
+                          : isModerate 
+                          ? 'text-sky-400' 
+                          : 'text-slate-500';
+
+                        return (
+                          <div key={idx} className={`p-3 border rounded-lg flex items-center justify-between text-xs ${containerBg}`}>
+                            <div className="flex items-center space-x-2">
+                              <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${badgeColor}`}>{item.priority}</span>
+                              <span>{item.recommendation}</span>
+                            </div>
+                            <ChevronRight className={`w-4 h-4 ${iconColor}`} />
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <>
+                        {periapicalCount > 0 && (
+                          <div className="p-3 bg-purple-950/30 border border-purple-800/60 rounded-lg flex items-center justify-between text-xs">
+                            <div className="flex items-center space-x-2 text-purple-300">
+                              <span className="px-1.5 py-0.5 rounded bg-purple-900 text-purple-200 font-bold text-[10px]">EMERGENT</span>
+                              <span>치근단 병소 발견 치아: 정밀 방사선 및 근관 치료(Endodontics) 우선 고려 요망.</span>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-purple-400" />
+                          </div>
+                        )}
+                        {cariesCount > 0 && (
+                          <div className="p-3 bg-rose-950/30 border border-rose-800/60 rounded-lg flex items-center justify-between text-xs">
+                            <div className="flex items-center space-x-2 text-rose-300">
+                              <span className="px-1.5 py-0.5 rounded bg-rose-900 text-rose-200 font-bold text-[10px]">HIGH</span>
+                              <span>치아 우식증 확진 치아: 와동 형성 및 보철/수복(Restoration) 치료 권고.</span>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-rose-400" />
+                          </div>
+                        )}
+                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-between text-xs text-slate-400">
+                          <div className="flex items-center space-x-2">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px]">PREVENTIVE</span>
+                            <span>정기 치주 스케일링 및 6개월 단위 임상 파노라마 추적 관찰 추천.</span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-500" />
                         </div>
-                        <ChevronRight className="w-4 h-4 text-purple-400" />
-                      </div>
+                      </>
                     )}
-                    {cariesCount > 0 && (
-                      <div className="p-3 bg-rose-950/30 border border-rose-800/60 rounded-lg flex items-center justify-between text-xs">
-                        <div className="flex items-center space-x-2 text-rose-300">
-                          <span className="px-1.5 py-0.5 rounded bg-rose-900 text-rose-200 font-bold text-[10px]">HIGH</span>
-                          <span>치아 우식증 확진 치아: 와동 형성 및 보철/수복(Restoration) 치료 권고.</span>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-rose-400" />
-                      </div>
-                    )}
-                    <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-between text-xs text-slate-400">
-                      <div className="flex items-center space-x-2">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px]">PREVENTIVE</span>
-                        <span>정기 치주 스케일링 및 6개월 단위 임상 파노라마 추적 관찰 추천.</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-500" />
-                    </div>
                   </div>
                 </div>
               </div>
