@@ -23,16 +23,46 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
     let isMounted = true;
     const { width: cWidth, height: cHeight } = canvas;
 
-    const renderOverlay = () => {
+    const renderOverlay = (
+      offsetX: number,
+      offsetY: number,
+      drawWidth: number,
+      drawHeight: number,
+      isResolutionMatched: boolean
+    ) => {
+      if (!isResolutionMatched) {
+        // Warning Banner when image bitmap dimensions don't match report metadata
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; // slate-900
+        ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
+        ctx.strokeStyle = '#f59e0b'; // amber-500
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('⚠️ 해상도 불일치로 오버레이 비활성화됨', offsetX + 35, offsetY + 38);
+        ctx.fillStyle = '#94a3b8'; // slate-400
+        ctx.font = '11px sans-serif';
+        ctx.fillText(
+          `비트맵 해상도(${drawWidth > 0 ? '불일치' : 'None'})와 리포트 메타데이터(${reportData.imageMetadata.width}x${reportData.imageMetadata.height})가 상이합니다.`,
+          offsetX + 35,
+          offsetY + 54
+        );
+        ctx.restore();
+        return;
+      }
+
       // Dynamic Midline marker
-      if (reportData.imageMetadata.midline_x) {
-        const midNormX = (reportData.imageMetadata.midline_x / reportData.imageMetadata.width) * cWidth;
+      if (reportData.imageMetadata.midline_x && reportData.imageMetadata.width) {
+        const midNormX = reportData.imageMetadata.midline_x / reportData.imageMetadata.width;
+        const midX = offsetX + midNormX * drawWidth;
         ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)'; // sky-400
         ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
-        ctx.moveTo(midNormX, 0);
-        ctx.lineTo(midNormX, cHeight);
+        ctx.moveTo(midX, offsetY);
+        ctx.lineTo(midX, offsetY + drawHeight);
         ctx.stroke();
       }
 
@@ -44,10 +74,10 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         // Filter based on dual-threshold policy
         if (isSuspected && !showSuspected) return;
 
-        const vx = box.x * cWidth;
-        const vy = box.y * cHeight;
-        const vw = box.w * cWidth;
-        const vh = box.h * cHeight;
+        const vx = offsetX + box.x * drawWidth;
+        const vy = offsetY + box.y * drawHeight;
+        const vw = box.w * drawWidth;
+        const vh = box.h * drawHeight;
 
         ctx.beginPath();
         if (isHighConf) {
@@ -119,8 +149,8 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           }
 
           poly.points.forEach((pt, idx) => {
-            const px = pt.x * cWidth;
-            const py = pt.y * cHeight;
+            const px = offsetX + pt.x * drawWidth;
+            const py = offsetY + pt.y * drawHeight;
             if (idx === 0) ctx.moveTo(px, py);
             else ctx.lineTo(px, py);
           });
@@ -154,30 +184,69 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
       }
     };
 
+    const drawWithLetterbox = (img: HTMLImageElement) => {
+      const imgW = img.naturalWidth || img.width;
+      const imgH = img.naturalHeight || img.height;
+
+      if (!imgW || !imgH) {
+        drawPlaceholderGrid();
+        return;
+      }
+
+      const imgAspect = imgW / imgH;
+      const canvasAspect = cWidth / cHeight;
+      let drawWidth = cWidth;
+      let drawHeight = cHeight;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      if (imgAspect > canvasAspect) {
+        // 이미지가 캔버스보다 와이드함 -> 상하 레터박스
+        drawWidth = cWidth;
+        drawHeight = cWidth / imgAspect;
+        offsetX = 0;
+        offsetY = (cHeight - drawHeight) / 2;
+      } else {
+        // 이미지가 캔버스보다 톨함 -> 좌우 필러박스
+        drawHeight = cHeight;
+        drawWidth = cHeight * imgAspect;
+        offsetX = (cWidth - drawWidth) / 2;
+        offsetY = 0;
+      }
+
+      // 캔버스 배경을 검은색으로 클리어
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, cWidth, cHeight);
+
+      // 종횡비 보존 레터박스 이미지 그리기
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+      // 해상도 검증: 로드된 비트맵 naturalWidth/Height vs reportData.imageMetadata.width/height
+      const isResolutionMatched =
+        imgW === reportData.imageMetadata.width &&
+        imgH === reportData.imageMetadata.height;
+
+      renderOverlay(offsetX, offsetY, drawWidth, drawHeight, isResolutionMatched);
+    };
+
     ctx.clearRect(0, 0, cWidth, cHeight);
 
     if (imageUrl) {
       const img = new Image();
       img.onload = () => {
         if (!isMounted) return;
-        ctx.clearRect(0, 0, cWidth, cHeight);
-        ctx.drawImage(img, 0, 0, cWidth, cHeight);
-        renderOverlay();
+        drawWithLetterbox(img);
       };
       img.onerror = () => {
         if (!isMounted) return;
         drawPlaceholderGrid();
-        renderOverlay();
       };
       img.src = imageUrl;
       if (img.complete) {
-        ctx.clearRect(0, 0, cWidth, cHeight);
-        ctx.drawImage(img, 0, 0, cWidth, cHeight);
-        renderOverlay();
+        drawWithLetterbox(img);
       }
     } else {
       drawPlaceholderGrid();
-      renderOverlay();
     }
 
     return () => {
@@ -195,7 +264,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           </span>
         </h3>
         <span className="text-xs text-slate-400">
-          Resolution: {reportData.imageMetadata.width}x{reportData.imageMetadata.height}px
+          Metadata: {reportData.imageMetadata.width}x{reportData.imageMetadata.height}px
         </span>
       </div>
       <div className="relative w-full aspect-[2/1] overflow-hidden rounded-lg border border-slate-800 bg-black">
@@ -203,7 +272,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           ref={canvasRef}
           width={1200}
           height={600}
-          className="w-full h-full object-contain cursor-crosshair"
+          className="w-full h-full cursor-crosshair"
         />
       </div>
     </div>

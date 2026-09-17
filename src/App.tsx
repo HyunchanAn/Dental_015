@@ -14,6 +14,15 @@ interface ModuleStatusItem {
   version: string;
 }
 
+const emptyReport: FinalReportResponse = {
+  reportId: '',
+  patientId: '',
+  timestamp: '',
+  imageMetadata: { filename: '', width: 0, height: 0 },
+  findings: {},
+  summary: '',
+};
+
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis'>('analysis');
   const [backendStatus, setBackendStatus] = useState<string>('Checking...');
@@ -64,7 +73,16 @@ export const App: React.FC = () => {
       const objectUrl = URL.createObjectURL(file);
       setImagePreview(objectUrl);
       setErrorMessage(null);
+      // Reset mock data when a real user file is selected to prevent overlay mismatch
+      setReportData(emptyReport);
     }
+  };
+
+  const handleLoadDemo = () => {
+    setSelectedFile(null);
+    setImagePreview('/sample_panorama.png');
+    setReportData(mockFinalReport);
+    setErrorMessage(null);
   };
 
   const handleRunInference = async () => {
@@ -77,9 +95,10 @@ export const App: React.FC = () => {
       const result = await inferPanorama(selectedFile, false);
       setReportData(result);
     } catch (err: any) {
-      console.warn('API Call failed, falling back to mock data:', err);
-      setErrorMessage('백엔드 연동에 실패하여 Mock 응답 데이터로 대체 표시합니다.');
-      setReportData(mockFinalReport);
+      console.warn('API Call failed:', err);
+      // Strictly prevent fallback to mock data on real user uploads
+      setErrorMessage('백엔드 AI 추론 호출에 실패했습니다. (게이트웨이 연결 및 모델 가동 상태를 확인하세요)');
+      setReportData(emptyReport);
     } finally {
       setIsLoading(false);
     }
@@ -299,9 +318,22 @@ export const App: React.FC = () => {
                     <span className="text-[10px] text-slate-500">치조정 마스킹 계측</span>
                   </div>
                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
-                    <span className="text-xs text-slate-400">골다공증 위험도 (014)</span>
-                    <div className="text-2xl font-bold text-emerald-400">{reportData.findings.osteoporosisRisk?.category || 'LOW'}</div>
-                    <span className="text-[10px] text-slate-500">MCW 피질골 스크리닝</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">골다공증 위험도 (014)</span>
+                      {reportData.findings.osteoporosisRisk?.status === 'MOCK_SCREENING' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">
+                          MOCK
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-400">
+                      {reportData.findings.osteoporosisRisk?.category || 'LOW'}
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      {reportData.findings.osteoporosisRisk?.status === 'MOCK_SCREENING'
+                        ? '추론 미연동 스크리닝 베이스라인'
+                        : 'MCW 피질골 스크리닝'}
+                    </span>
                   </div>
                 </div>
 
@@ -462,11 +494,18 @@ export const App: React.FC = () => {
                         <span>Run Inference</span>
                       )}
                     </button>
+                    <button
+                      onClick={handleLoadDemo}
+                      disabled={isLoading}
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 transition-colors whitespace-nowrap"
+                    >
+                      데모 샘플 불러오기
+                    </button>
                   </div>
 
                   {errorMessage && (
-                    <div className="flex items-center space-x-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-400 text-xs">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <div className="flex items-center space-x-2 p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg text-rose-400 text-xs">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
                       <span>{errorMessage}</span>
                     </div>
                   )}
