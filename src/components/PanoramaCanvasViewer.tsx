@@ -285,9 +285,19 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
             Solid: Conf ≥ 45% | Dashed: 20% ~ 45%
           </span>
         </h3>
-        <span className="text-xs text-slate-400">
-          Metadata: {reportData.imageMetadata.width}x{reportData.imageMetadata.height}px
-        </span>
+        <div className="flex items-center space-x-2 text-xs text-slate-400">
+          <span>Metadata: {reportData.imageMetadata.width}x{reportData.imageMetadata.height}px</span>
+          {reportData.imageMetadata.sha256_hash && (
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-400" title={reportData.imageMetadata.sha256_hash}>
+              SHA: {reportData.imageMetadata.sha256_hash.slice(0, 8)}...
+            </span>
+          )}
+          {reportData.imageMetadata.preprocessing_id && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-emerald-400 font-mono">
+              {reportData.imageMetadata.preprocessing_id}
+            </span>
+          )}
+        </div>
       </div>
       <div className="relative w-full aspect-[2/1] overflow-hidden rounded-lg border border-slate-800 bg-black">
         <canvas
