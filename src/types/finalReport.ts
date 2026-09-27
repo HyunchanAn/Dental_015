@@ -5,6 +5,8 @@ export interface ImageMetadata {
   height: number;
   filename: string;
   midline_x?: number;
+  sha256_hash?: string;
+  preprocessing_id?: string;
 }
 
 export interface NormalizedBBox {

@@ -10,6 +10,8 @@ export const mockFinalReport: FinalReportResponse = {
     width: 2872,
     height: 1504,
     midline_x: 1436.0,
+    sha256_hash: "1a27e2512fad07eed9bb1ac09b075d4ec131cdc631d1ea55962c2c8007ef5f74",
+    preprocessing_id: "PRE-VISTA-AUTO-LETTERBOX-v1",
   },
   findings: {
     caries: [
