@@ -7,42 +7,80 @@ interface PanoramaCanvasViewerProps {
   showSuspected?: boolean; // Dual threshold toggle for under-observation lesions (0.20 <= conf < 0.45)
 }
 
+type VerificationStatus = 'idle' | 'verifying' | 'verified' | 'mismatch' | 'error' | 'missing_metadata';
+
 export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
   imageUrl,
   reportData,
   showSuspected = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
   const [actualHash, setActualHash] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
-  // Compute SHA-256 hash of currently loaded image in browser
+  // Single-source-of-bytes pipeline:
+  // Fetch image as Blob -> Compute SHA-256 on same buffer -> Verify against report metadata -> Create ObjectURL for display
   useEffect(() => {
     let isMounted = true;
+    let currentObjectUrl: string | null = null;
+
     if (!imageUrl) {
+      setVerificationStatus('idle');
       setActualHash(null);
+      setBlobUrl(null);
       return;
     }
 
-    const computeHash = async () => {
+    const reportHash = reportData.imageMetadata.sha256_hash?.toLowerCase();
+    if (!reportHash) {
+      setVerificationStatus('missing_metadata');
+    } else {
+      setVerificationStatus('verifying');
+    }
+
+    const loadAndVerify = async () => {
       try {
         const resp = await fetch(imageUrl);
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch image: HTTP ${resp.status}`);
+        }
         const buffer = await resp.arrayBuffer();
         const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-        if (isMounted) {
-          setActualHash(hashHex);
+
+        if (!isMounted) return;
+        setActualHash(hashHex);
+
+        const blob = new Blob([buffer]);
+        currentObjectUrl = URL.createObjectURL(blob);
+        setBlobUrl(currentObjectUrl);
+
+        if (!reportHash) {
+          setVerificationStatus('missing_metadata');
+        } else if (hashHex.toLowerCase() === reportHash) {
+          setVerificationStatus('verified');
+        } else {
+          setVerificationStatus('mismatch');
         }
       } catch (err) {
-        console.warn('Image hash computation skipped:', err);
+        console.error('Image integrity verification failed:', err);
+        if (isMounted) {
+          setVerificationStatus('error');
+        }
       }
     };
 
-    computeHash();
+    loadAndVerify();
+
     return () => {
       isMounted = false;
+      if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+      }
     };
-  }, [imageUrl]);
+  }, [imageUrl, reportData.imageMetadata.sha256_hash]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,13 +96,12 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
       offsetY: number,
       drawWidth: number,
       drawHeight: number,
-      isResolutionMatched: boolean,
-      isHashMismatch: boolean
+      isResolutionMatched: boolean
     ) => {
       if (!isResolutionMatched) {
         // Warning Banner when image bitmap dimensions don't match report metadata
         ctx.save();
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; // slate-900
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
         ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
         ctx.strokeStyle = '#f59e0b'; // amber-500
         ctx.lineWidth = 1.5;
@@ -73,10 +110,10 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         ctx.fillStyle = '#f59e0b';
         ctx.font = 'bold 12px sans-serif';
         ctx.fillText('⚠️ 해상도 불일치로 오버레이 비활성화됨', offsetX + 35, offsetY + 38);
-        ctx.fillStyle = '#94a3b8'; // slate-400
+        ctx.fillStyle = '#94a3b8';
         ctx.font = '11px sans-serif';
         ctx.fillText(
-          `비트맵 해상도(${drawWidth > 0 ? '불일치' : 'None'})와 리포트 메타데이터(${reportData.imageMetadata.width}x${reportData.imageMetadata.height})가 상이합니다.`,
+          `비트맵 해상도와 리포트 메타데이터(${reportData.imageMetadata.width}x${reportData.imageMetadata.height})가 상이합니다.`,
           offsetX + 35,
           offsetY + 54
         );
@@ -84,25 +121,40 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         return;
       }
 
-      if (isHashMismatch) {
-        // Warning Banner when SHA-256 hash doesn't match report metadata
+      // Fail-closed verification gate: Overlay is strictly blocked unless verified
+      if (verificationStatus !== 'verified') {
         ctx.save();
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-        ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 750), 46);
-        ctx.strokeStyle = '#ef4444'; // rose-500
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 750), 46);
+        let bannerBg = 'rgba(15, 23, 42, 0.94)';
+        let bannerBorder = '#ef4444';
+        let bannerTitle = '🚫 이미지 해시(SHA-256) 불일치로 오버레이 차단됨';
+        let bannerSubtitle = `표시 이미지(${actualHash?.slice(0, 8)}...)와 리포트 식별자(${reportData.imageMetadata.sha256_hash?.slice(0, 8)}...)가 상이합니다.`;
 
-        ctx.fillStyle = '#ef4444';
+        if (verificationStatus === 'verifying') {
+          bannerBorder = '#38bdf8';
+          bannerTitle = '🔒 이미지 무결성 검증 중 (SHA-256 계산 및 리포트 대조)';
+          bannerSubtitle = '환자 안전을 위해 이미지 해시 검증이 완료될 때까지 오버레이 렌더링이 보류됩니다.';
+        } else if (verificationStatus === 'missing_metadata') {
+          bannerBorder = '#f59e0b';
+          bannerTitle = '⚠️ 리포트 내 SHA-256 메타데이터 부재로 오버레이 보류됨';
+          bannerSubtitle = '안전한 판독을 위해 리포트에 SHA-256 해시가 포함되어야 합니다.';
+        } else if (verificationStatus === 'error') {
+          bannerBorder = '#ef4444';
+          bannerTitle = '⚠️ 이미지 무결성 검증 실패로 오버레이 차단됨';
+          bannerSubtitle = '네트워크 또는 암호화 해시 계산 오류로 인해 오버레이 표시가 안전하게 중단되었습니다.';
+        }
+
+        ctx.fillStyle = bannerBg;
+        ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 780), 46);
+        ctx.strokeStyle = bannerBorder;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 780), 46);
+
+        ctx.fillStyle = bannerBorder;
         ctx.font = 'bold 12px sans-serif';
-        ctx.fillText('🚫 이미지 해시(SHA-256) 불일치로 오버레이 차단됨', offsetX + 35, offsetY + 38);
+        ctx.fillText(bannerTitle, offsetX + 35, offsetY + 38);
         ctx.fillStyle = '#94a3b8';
         ctx.font = '11px sans-serif';
-        ctx.fillText(
-          `표시 이미지(${actualHash?.slice(0, 8)}...)와 리포트 식별자(${reportData.imageMetadata.sha256_hash?.slice(0, 8)}...)가 상이하여 오버레이를 표시하지 않습니다.`,
-          offsetX + 35,
-          offsetY + 54
-        );
+        ctx.fillText(bannerSubtitle, offsetX + 35, offsetY + 54);
         ctx.restore();
         return;
       }
@@ -302,19 +354,13 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         imgW === reportData.imageMetadata.width &&
         imgH === reportData.imageMetadata.height;
 
-      // SHA-256 해시 대조 검증: 리포트에 해시가 정의되어 있고 실제 이미지 해시와 상이할 경우
-      const isHashMismatch = Boolean(
-        reportData.imageMetadata.sha256_hash &&
-        actualHash &&
-        reportData.imageMetadata.sha256_hash.toLowerCase() !== actualHash.toLowerCase()
-      );
-
-      renderOverlay(offsetX, offsetY, drawWidth, drawHeight, isResolutionMatched, isHashMismatch);
+      renderOverlay(offsetX, offsetY, drawWidth, drawHeight, isResolutionMatched);
     };
 
     ctx.clearRect(0, 0, cWidth, cHeight);
 
-    if (imageUrl) {
+    const activeSrc = blobUrl || imageUrl;
+    if (activeSrc) {
       const img = new Image();
       img.onload = () => {
         if (!isMounted) return;
@@ -324,7 +370,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         if (!isMounted) return;
         drawPlaceholderGrid();
       };
-      img.src = imageUrl;
+      img.src = activeSrc;
       if (img.complete) {
         drawWithLetterbox(img);
       }
@@ -335,7 +381,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [reportData, imageUrl, showSuspected, actualHash]);
+  }, [reportData, blobUrl, imageUrl, showSuspected, verificationStatus, actualHash]);
 
   return (
     <div className="w-full bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
@@ -351,6 +397,26 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           {reportData.imageMetadata.sha256_hash && (
             <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-sky-400" title={reportData.imageMetadata.sha256_hash}>
               SHA: {reportData.imageMetadata.sha256_hash.slice(0, 8)}...
+            </span>
+          )}
+          {verificationStatus === 'verified' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-600 text-emerald-300 font-medium">
+              ✓ Verified
+            </span>
+          )}
+          {verificationStatus === 'verifying' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-950/80 border border-sky-600 text-sky-300 font-medium animate-pulse">
+              Verifying SHA...
+            </span>
+          )}
+          {verificationStatus === 'mismatch' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-950/80 border border-rose-600 text-rose-300 font-medium">
+              ✗ SHA Mismatch
+            </span>
+          )}
+          {verificationStatus === 'missing_metadata' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-600 text-amber-300 font-medium">
+              SHA Unset
             </span>
           )}
           {reportData.imageMetadata.preprocessing_id && (
