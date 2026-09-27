@@ -32,6 +32,37 @@ export interface NormalizedPolygon {
   confidence_level?: 'HIGH' | 'SUSPECTED';
 }
 
+export interface DetectedTooth {
+  toothNumber: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  confidence: number;
+  uncertain?: boolean;
+}
+
+export interface RestorationItem {
+  toothNumber?: number | null;
+  type: string;
+  confidence: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ImpactedToothItem {
+  toothNumber: number;
+  wintersClass: string;
+  eruptionStatus: string;
+  angleDiff: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface MissingTeethAnalysis {
   verified_missing: number[];
   uncertain_missing: number[];
@@ -51,7 +82,7 @@ export interface TreatmentQueueItem {
 }
 
 export interface OdontogramToothStatus {
-  status: 'Sound' | 'Caries' | 'Periapical' | 'BoneLoss' | 'Missing' | 'Suspected';
+  status: 'Sound' | 'Caries' | 'Periapical' | 'BoneLoss' | 'Missing' | 'Suspected' | 'Restored' | 'Impacted';
   label: string;
   details?: string;
 }
@@ -62,9 +93,12 @@ export interface ClinicalSynthesis {
 }
 
 export interface DiagnosticFindings {
+  teeth?: DetectedTooth[];
   caries?: NormalizedBBox[];
   boneLoss?: NormalizedPolygon[];
   periapicalLesions?: NormalizedBBox[];
+  restorations?: RestorationItem[];
+  impactedTeeth?: ImpactedToothItem[];
   missingTeeth?: MissingTeethAnalysis;
   osteoporosisRisk?: {
     score: number;

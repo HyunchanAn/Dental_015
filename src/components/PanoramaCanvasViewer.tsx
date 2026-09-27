@@ -100,25 +100,27 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
     ) => {
       if (!isResolutionMatched) {
         // Warning Banner when image bitmap dimensions don't match report metadata
-        ctx.save();
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
-        ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
-        ctx.strokeStyle = '#f59e0b'; // amber-500
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
+        if (reportData.imageMetadata.width > 0 && reportData.imageMetadata.height > 0) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+          ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
+          ctx.strokeStyle = '#f59e0b'; // amber-500
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 720), 46);
 
-        ctx.fillStyle = '#f59e0b';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillText('⚠️ 해상도 불일치로 오버레이 비활성화됨', offsetX + 35, offsetY + 38);
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '11px sans-serif';
-        ctx.fillText(
-          `비트맵 해상도와 리포트 메타데이터(${reportData.imageMetadata.width}x${reportData.imageMetadata.height})가 상이합니다.`,
-          offsetX + 35,
-          offsetY + 54
-        );
-        ctx.restore();
-        return;
+          ctx.fillStyle = '#f59e0b';
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillText('⚠️ 해상도 불일치로 오버레이 비활성화됨', offsetX + 35, offsetY + 38);
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '11px sans-serif';
+          ctx.fillText(
+            `비트맵 해상도(${drawWidth > 0 ? '불일치' : 'None'})와 리포트 메타데이터(${reportData.imageMetadata.width}x${reportData.imageMetadata.height})가 상이합니다.`,
+            offsetX + 35,
+            offsetY + 54
+          );
+          ctx.restore();
+          return;
+        }
       }
 
       // Fail-closed verification gate: Overlay is strictly blocked unless verified
@@ -172,6 +174,100 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         ctx.stroke();
       }
 
+      // 0. Render Detected Teeth (Dental_008): 32 Teeth BBoxes & FDI Labels
+      if (reportData.findings.teeth) {
+        reportData.findings.teeth.forEach((tooth) => {
+          const vx = offsetX + tooth.x * drawWidth;
+          const vy = offsetY + tooth.y * drawHeight;
+          const vw = tooth.w * drawWidth;
+          const vh = tooth.h * drawHeight;
+
+          ctx.beginPath();
+          if (tooth.uncertain) {
+            ctx.setLineDash([3, 3]);
+            ctx.strokeStyle = 'rgba(234, 179, 8, 0.85)'; // yellow-500
+            ctx.lineWidth = 1.5;
+            ctx.fillStyle = 'rgba(234, 179, 8, 0.08)';
+          } else {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.55)'; // emerald-500
+            ctx.lineWidth = 1.2;
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.05)';
+          }
+          ctx.strokeRect(vx, vy, vw, vh);
+          ctx.fillRect(vx, vy, vw, vh);
+
+          // Tooth FDI Label Badge
+          ctx.setLineDash([]);
+          const isUpper = tooth.toothNumber < 30;
+          const badgeY = isUpper ? Math.max(offsetY, vy - 16) : Math.min(offsetY + drawHeight - 16, vy + vh);
+          const badgeText = tooth.uncertain ? `?#${tooth.toothNumber}` : `#${tooth.toothNumber}`;
+          
+          ctx.font = 'bold 11px sans-serif';
+          const textW = ctx.measureText(badgeText).width;
+          ctx.fillStyle = tooth.uncertain ? 'rgba(202, 138, 4, 0.9)' : 'rgba(5, 150, 105, 0.85)';
+          ctx.fillRect(vx, badgeY, textW + 6, 15);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(badgeText, vx + 3, badgeY + 11);
+        });
+      }
+
+      // 1. Render Restorations (Dental_013): Teal BBoxes
+      if (reportData.findings.restorations) {
+        reportData.findings.restorations.forEach((item) => {
+          const vx = offsetX + item.x * drawWidth;
+          const vy = offsetY + item.y * drawHeight;
+          const vw = item.w * drawWidth;
+          const vh = item.h * drawHeight;
+
+          ctx.beginPath();
+          ctx.setLineDash([4, 2]);
+          ctx.strokeStyle = '#14b8a6'; // teal-500
+          ctx.lineWidth = 2.0;
+          ctx.fillStyle = 'rgba(20, 184, 166, 0.20)';
+          ctx.strokeRect(vx, vy, vw, vh);
+          ctx.fillRect(vx, vy, vw, vh);
+
+          // Restoration Badge
+          ctx.setLineDash([]);
+          const tag = item.toothNumber ? `#${item.toothNumber} Restored` : 'Restoration';
+          ctx.font = 'bold 11px sans-serif';
+          const textW = ctx.measureText(tag).width;
+          ctx.fillStyle = '#0d9488'; // teal-600
+          ctx.fillRect(vx, vy > 18 ? vy - 18 : vy, textW + 8, 16);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(tag, vx + 4, vy > 18 ? vy - 5 : vy + 12);
+        });
+      }
+
+      // 2. Render Impacted Teeth (Dental_009): Pink/Fuchsia BBoxes
+      if (reportData.findings.impactedTeeth) {
+        reportData.findings.impactedTeeth.forEach((imp) => {
+          const vx = offsetX + imp.x * drawWidth;
+          const vy = offsetY + imp.y * drawHeight;
+          const vw = imp.w * drawWidth;
+          const vh = imp.h * drawHeight;
+
+          ctx.beginPath();
+          ctx.setLineDash([5, 3]);
+          ctx.strokeStyle = '#ec4899'; // pink-500
+          ctx.lineWidth = 2.2;
+          ctx.fillStyle = 'rgba(236, 72, 153, 0.22)';
+          ctx.strokeRect(vx, vy, vw, vh);
+          ctx.fillRect(vx, vy, vw, vh);
+
+          // Impacted Badge
+          ctx.setLineDash([]);
+          const tag = `Impacted #${imp.toothNumber} (${imp.wintersClass})`;
+          ctx.font = 'bold 11px sans-serif';
+          const textW = ctx.measureText(tag).width;
+          ctx.fillStyle = '#db2777'; // pink-600
+          ctx.fillRect(vx, vy > 18 ? vy - 18 : vy, textW + 8, 16);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(tag, vx + 4, vy > 18 ? vy - 5 : vy + 12);
+        });
+      }
+
       const drawBBox = (box: NormalizedBBox, defaultColor: string, labelPrefix: string) => {
         const conf = box.confidence;
         const isHighConf = conf >= 0.45;
@@ -220,21 +316,21 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         ctx.fillText(tagText, vx + 5, vy > 20 ? vy - 6 : vy + 13);
       };
 
-      // 1. Render Caries (Dental_002): Rose/Red BBox
+      // 3. Render Caries (Dental_002): Rose/Red BBox
       if (reportData.findings.caries) {
         reportData.findings.caries.forEach((box) => {
           drawBBox(box, '#f43f5e', box.toothNumber ? `#${box.toothNumber} Caries` : 'Caries');
         });
       }
 
-      // 2. Render Periapical Lesions (Dental_012): Purple BBox
+      // 4. Render Periapical Lesions (Dental_012): Purple BBox
       if (reportData.findings.periapicalLesions) {
         reportData.findings.periapicalLesions.forEach((box) => {
           drawBBox(box, '#a855f7', box.toothNumber ? `#${box.toothNumber} Periapical` : 'Periapical');
         });
       }
 
-      // 3. Render Bone Loss Polygons (Dental_003): Blue Contours
+      // 5. Render Bone Loss Polygons (Dental_003): Blue Contours
       if (reportData.findings.boneLoss) {
         reportData.findings.boneLoss.forEach((poly) => {
           if (poly.points.length === 0) return;
