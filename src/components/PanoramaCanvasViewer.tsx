@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { FinalReportResponse, NormalizedBBox } from '../types/finalReport';
 
 interface PanoramaCanvasViewerProps {
@@ -13,6 +13,36 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
   showSuspected = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [actualHash, setActualHash] = useState<string | null>(null);
+
+  // Compute SHA-256 hash of currently loaded image in browser
+  useEffect(() => {
+    let isMounted = true;
+    if (!imageUrl) {
+      setActualHash(null);
+      return;
+    }
+
+    const computeHash = async () => {
+      try {
+        const resp = await fetch(imageUrl);
+        const buffer = await resp.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+        if (isMounted) {
+          setActualHash(hashHex);
+        }
+      } catch (err) {
+        console.warn('Image hash computation skipped:', err);
+      }
+    };
+
+    computeHash();
+    return () => {
+      isMounted = false;
+    };
+  }, [imageUrl]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,7 +58,8 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
       offsetY: number,
       drawWidth: number,
       drawHeight: number,
-      isResolutionMatched: boolean
+      isResolutionMatched: boolean,
+      isHashMismatch: boolean
     ) => {
       if (!isResolutionMatched) {
         // Warning Banner when image bitmap dimensions don't match report metadata
@@ -46,6 +77,29 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         ctx.font = '11px sans-serif';
         ctx.fillText(
           `비트맵 해상도(${drawWidth > 0 ? '불일치' : 'None'})와 리포트 메타데이터(${reportData.imageMetadata.width}x${reportData.imageMetadata.height})가 상이합니다.`,
+          offsetX + 35,
+          offsetY + 54
+        );
+        ctx.restore();
+        return;
+      }
+
+      if (isHashMismatch) {
+        // Warning Banner when SHA-256 hash doesn't match report metadata
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 750), 46);
+        ctx.strokeStyle = '#ef4444'; // rose-500
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 750), 46);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('🚫 이미지 해시(SHA-256) 불일치로 오버레이 차단됨', offsetX + 35, offsetY + 38);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(
+          `표시 이미지(${actualHash?.slice(0, 8)}...)와 리포트 식별자(${reportData.imageMetadata.sha256_hash?.slice(0, 8)}...)가 상이하여 오버레이를 표시하지 않습니다.`,
           offsetX + 35,
           offsetY + 54
         );
@@ -248,7 +302,14 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         imgW === reportData.imageMetadata.width &&
         imgH === reportData.imageMetadata.height;
 
-      renderOverlay(offsetX, offsetY, drawWidth, drawHeight, isResolutionMatched);
+      // SHA-256 해시 대조 검증: 리포트에 해시가 정의되어 있고 실제 이미지 해시와 상이할 경우
+      const isHashMismatch = Boolean(
+        reportData.imageMetadata.sha256_hash &&
+        actualHash &&
+        reportData.imageMetadata.sha256_hash.toLowerCase() !== actualHash.toLowerCase()
+      );
+
+      renderOverlay(offsetX, offsetY, drawWidth, drawHeight, isResolutionMatched, isHashMismatch);
     };
 
     ctx.clearRect(0, 0, cWidth, cHeight);
@@ -274,7 +335,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [reportData, imageUrl, showSuspected]);
+  }, [reportData, imageUrl, showSuspected, actualHash]);
 
   return (
     <div className="w-full bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
