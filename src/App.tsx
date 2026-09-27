@@ -541,6 +541,24 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Persistent DEMO / MOCK DATA Warning Banner */}
+                {(!selectedFile || reportData.reportId === 'REP-20260825-001') && (
+                  <div className="flex items-center justify-between p-3.5 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl text-amber-300 text-xs shadow-lg shadow-amber-950/20">
+                    <div className="flex items-center space-x-2.5">
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
+                      <div>
+                        <span className="font-bold text-amber-300 uppercase tracking-wide mr-2">[DEMO / MOCK SAMPLE DATA]</span>
+                        <span className="text-slate-300">
+                          현재 표시된 영상 및 바운딩 박스는 사전 보정된 데모 예시 데이터이며, 실제 백엔드 AI 모델의 실추론 결과가 아닙니다.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-full font-mono border border-amber-500/30 whitespace-nowrap">
+                      MOCK ACTIVE
+                    </span>
+                  </div>
+                )}
+
                 {/* Canvas Viewer */}
                 <PanoramaCanvasViewer 
                   imageUrl={imagePreview || undefined} 
