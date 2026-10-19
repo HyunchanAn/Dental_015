@@ -174,16 +174,22 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         ctx.stroke();
       }
 
-      // 0. Render Detected Teeth (Dental_008): 32 Teeth BBoxes & FDI Labels
+      // 0. Render Detected Teeth (Dental_008): 32 Teeth BBoxes, Supernumerary & FDI Labels
       if (reportData.findings.teeth) {
         reportData.findings.teeth.forEach((tooth) => {
           const vx = offsetX + tooth.x * drawWidth;
           const vy = offsetY + tooth.y * drawHeight;
           const vw = tooth.w * drawWidth;
           const vh = tooth.h * drawHeight;
+          const isSuper = Boolean(tooth.isSupernumerary || [19, 29, 39, 49].includes(tooth.toothNumber));
 
           ctx.beginPath();
-          if (tooth.uncertain) {
+          if (isSuper) {
+            ctx.setLineDash([4, 2]);
+            ctx.strokeStyle = 'rgba(139, 92, 246, 0.90)'; // violet-500
+            ctx.lineWidth = 1.8;
+            ctx.fillStyle = 'rgba(139, 92, 246, 0.14)';
+          } else if (tooth.uncertain) {
             ctx.setLineDash([3, 3]);
             ctx.strokeStyle = 'rgba(234, 179, 8, 0.85)'; // yellow-500
             ctx.lineWidth = 1.5;
@@ -201,18 +207,26 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           ctx.setLineDash([]);
           const isUpper = tooth.toothNumber < 30;
           const badgeY = isUpper ? Math.max(offsetY, vy - 16) : Math.min(offsetY + drawHeight - 16, vy + vh);
-          const badgeText = tooth.uncertain ? `?#${tooth.toothNumber}` : `#${tooth.toothNumber}`;
+          const badgeText = isSuper
+            ? `SN #${tooth.toothNumber}`
+            : tooth.uncertain
+            ? `?#${tooth.toothNumber}`
+            : `#${tooth.toothNumber}`;
           
           ctx.font = 'bold 11px sans-serif';
           const textW = ctx.measureText(badgeText).width;
-          ctx.fillStyle = tooth.uncertain ? 'rgba(202, 138, 4, 0.9)' : 'rgba(5, 150, 105, 0.85)';
+          ctx.fillStyle = isSuper
+            ? 'rgba(124, 58, 237, 0.92)'
+            : tooth.uncertain
+            ? 'rgba(202, 138, 4, 0.9)'
+            : 'rgba(5, 150, 105, 0.85)';
           ctx.fillRect(vx, badgeY, textW + 6, 15);
           ctx.fillStyle = '#ffffff';
           ctx.fillText(badgeText, vx + 3, badgeY + 11);
         });
       }
 
-      // 1. Render Restorations (Dental_013): Teal BBoxes
+      // 1. Render Restorations (Dental_013): Teal BBoxes with Clinical Category
       if (reportData.findings.restorations) {
         reportData.findings.restorations.forEach((item) => {
           const vx = offsetX + item.x * drawWidth;
@@ -228,9 +242,10 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           ctx.strokeRect(vx, vy, vw, vh);
           ctx.fillRect(vx, vy, vw, vh);
 
-          // Restoration Badge
+          // Restoration Badge with 4-class SSOT category
           ctx.setLineDash([]);
-          const tag = item.toothNumber ? `#${item.toothNumber} Restored` : 'Restoration';
+          const restLabel = item.type && item.type !== 'Restoration' ? item.type : 'Restored';
+          const tag = item.toothNumber ? `#${item.toothNumber} ${restLabel}` : restLabel;
           ctx.font = 'bold 11px sans-serif';
           const textW = ctx.measureText(tag).width;
           ctx.fillStyle = '#0d9488'; // teal-600
@@ -270,8 +285,12 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
 
       const drawBBox = (box: NormalizedBBox, defaultColor: string, labelPrefix: string) => {
         const conf = box.confidence;
-        const isHighConf = conf >= 0.45;
-        const isSuspected = conf >= 0.20 && conf < 0.45;
+        const isHighConf = box.clinicalStatus
+          ? box.clinicalStatus === 'DEFINITE'
+          : conf >= 0.50;
+        const isSuspected = box.clinicalStatus
+          ? box.clinicalStatus === 'REVIEW_REQUIRED'
+          : conf >= 0.25 && conf < 0.50;
 
         // Filter based on dual-threshold policy
         if (isSuspected && !showSuspected) return;

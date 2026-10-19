@@ -22,6 +22,8 @@ export interface NormalizedBBox {
   relative_label?: string;
   uncertain_fdi?: boolean;
   confidence_level?: 'HIGH' | 'SUSPECTED';
+  clinicalStatus?: 'DEFINITE' | 'REVIEW_REQUIRED';
+  isolatedAnatomicalSuspicion?: boolean;
 }
 
 export interface NormalizedPolygon {
@@ -40,11 +42,13 @@ export interface DetectedTooth {
   h: number;
   confidence: number;
   uncertain?: boolean;
+  isSupernumerary?: boolean;
 }
 
 export interface RestorationItem {
   toothNumber?: number | null;
   type: string;
+  rawClass?: string | null;
   confidence: number;
   x: number;
   y: number;
@@ -94,6 +98,7 @@ export interface ClinicalSynthesis {
 
 export interface DiagnosticFindings {
   teeth?: DetectedTooth[];
+  supernumeraryTeeth?: DetectedTooth[];
   caries?: NormalizedBBox[];
   boneLoss?: NormalizedPolygon[];
   periapicalLesions?: NormalizedBBox[];
@@ -101,9 +106,11 @@ export interface DiagnosticFindings {
   impactedTeeth?: ImpactedToothItem[];
   missingTeeth?: MissingTeethAnalysis;
   osteoporosisRisk?: {
-    score: number;
-    category: 'LOW' | 'MODERATE' | 'HIGH';
+    score: number | null;
+    category: 'LOW' | 'MODERATE' | 'HIGH' | null;
     status?: string;
+    predictedClass?: string | null;
+    probabilities?: Record<string, number> | null;
   };
   clinicalSynthesis?: ClinicalSynthesis;
 }

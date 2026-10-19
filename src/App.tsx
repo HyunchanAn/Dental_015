@@ -36,7 +36,7 @@ export const App: React.FC = () => {
     { id: 'Dental_003', name: '치조골 소실 계측', type: 'Masking', status: 'ONLINE', weights: 'Core', version: 'v1.0' },
     { id: 'Dental_009', name: '매복치 난이도 분석', type: 'Winter Cls', status: 'ONLINE', weights: 'Geometry', version: 'v1.0' },
     { id: 'Dental_013', name: '치과 수복물 분류', type: 'YOLOv8 Seg', status: 'ONLINE', weights: 'best_restoration_model.onnx', version: 'v1.0' },
-    { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'MCI (MOCK)', status: 'STANDBY', weights: 'Mock Baseline', version: 'v0.5 (MOCK)' },
+    { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'OsteoMAENet', status: 'ONLINE', weights: 'best.pt', version: 'v1.0 (MCW)' },
   ]);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -320,19 +320,20 @@ export const App: React.FC = () => {
                   <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-slate-400">골다공증 위험도 (014)</span>
-                      {reportData.findings.osteoporosisRisk?.status === 'MOCK_SCREENING' && (
+                      {(reportData.findings.osteoporosisRisk?.status === 'MOCK_SCREENING' ||
+                        reportData.findings.osteoporosisRisk?.status === 'NOT_AVAILABLE') && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">
-                          MOCK
+                          {reportData.findings.osteoporosisRisk?.status === 'NOT_AVAILABLE' ? 'N/A' : 'MOCK'}
                         </span>
                       )}
                     </div>
                     <div className="text-2xl font-bold text-emerald-400">
-                      {reportData.findings.osteoporosisRisk?.category || 'LOW'}
+                      {reportData.findings.osteoporosisRisk?.category ?? 'NOT_AVAILABLE'}
                     </div>
                     <span className="text-[10px] text-slate-500">
-                      {reportData.findings.osteoporosisRisk?.status === 'MOCK_SCREENING'
-                        ? '추론 미연동 스크리닝 베이스라인'
-                        : 'MCW 피질골 스크리닝'}
+                      {reportData.findings.osteoporosisRisk?.status === 'ACTIVE_INFERENCE'
+                        ? `OsteoMAENet (${reportData.findings.osteoporosisRisk?.predictedClass || 'MCW'})`
+                        : '추론 미연동 (가중치 미로드)'}
                     </span>
                   </div>
                 </div>
