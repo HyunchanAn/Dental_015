@@ -5,6 +5,8 @@ interface PanoramaCanvasViewerProps {
   imageUrl?: string;
   reportData: FinalReportResponse;
   showSuspected?: boolean; // Dual threshold toggle for under-observation lesions (0.20 <= conf < 0.45)
+  isDemoMode?: boolean;
+  uploadedFileHash?: string | null;
 }
 
 type VerificationStatus = 'idle' | 'verifying' | 'verified' | 'mismatch' | 'error' | 'missing_metadata';
@@ -13,6 +15,8 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
   imageUrl,
   reportData,
   showSuspected = false,
+  isDemoMode = false,
+  uploadedFileHash = null,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
@@ -51,7 +55,8 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 
         if (!isMounted) return;
-        setActualHash(hashHex);
+        const effectiveActualHash = (uploadedFileHash || hashHex).toLowerCase();
+        setActualHash(effectiveActualHash);
 
         const blob = new Blob([buffer]);
         currentObjectUrl = URL.createObjectURL(blob);
@@ -59,7 +64,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
 
         if (!reportHash) {
           setVerificationStatus('missing_metadata');
-        } else if (hashHex.toLowerCase() === reportHash) {
+        } else if (effectiveActualHash === reportHash) {
           setVerificationStatus('verified');
         } else {
           setVerificationStatus('mismatch');
@@ -80,7 +85,7 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         URL.revokeObjectURL(currentObjectUrl);
       }
     };
-  }, [imageUrl, reportData.imageMetadata.sha256_hash]);
+  }, [imageUrl, reportData.imageMetadata.sha256_hash, uploadedFileHash]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -98,6 +103,36 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
       drawHeight: number,
       isResolutionMatched: boolean
     ) => {
+      // Explicit SHA-256 mismatch guard when not in demo mode
+      const reportHash = reportData.imageMetadata.sha256_hash?.toLowerCase();
+      const currentHash = (uploadedFileHash || actualHash)?.toLowerCase();
+      const hasHashMismatch =
+        !isDemoMode &&
+        Boolean(reportData.reportId) &&
+        Boolean(reportHash && currentHash && reportHash !== currentHash);
+
+      if (hasHashMismatch) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+        ctx.fillRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 780), 46);
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(offsetX + 20, offsetY + 20, Math.min(drawWidth - 40, 780), 46);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('🚫 이미지 해시(SHA-256) 불일치로 오버레이 차단됨', offsetX + 35, offsetY + 38);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(
+          `업로드된 이미지(${currentHash?.slice(0, 8)}...)와 리포트 해시(${reportHash?.slice(0, 8)}...)가 상이하여 추론 완료 전까지 오버레이를 차단합니다.`,
+          offsetX + 35,
+          offsetY + 54
+        );
+        ctx.restore();
+        return;
+      }
+
       if (!isResolutionMatched) {
         // Warning Banner when image bitmap dimensions don't match report metadata
         if (reportData.imageMetadata.width > 0 && reportData.imageMetadata.height > 0) {
@@ -125,6 +160,9 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
 
       // Fail-closed verification gate: Overlay is strictly blocked unless verified
       if (verificationStatus !== 'verified') {
+        if (!reportData.reportId) {
+          return;
+        }
         ctx.save();
         let bannerBg = 'rgba(15, 23, 42, 0.94)';
         let bannerBorder = '#ef4444';
@@ -194,6 +232,11 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
             ctx.strokeStyle = 'rgba(234, 179, 8, 0.85)'; // yellow-500
             ctx.lineWidth = 1.5;
             ctx.fillStyle = 'rgba(234, 179, 8, 0.08)';
+          } else if (tooth.clinicianCorrected) {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.90)'; // sky-400
+            ctx.lineWidth = 1.8;
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.10)';
           } else {
             ctx.setLineDash([]);
             ctx.strokeStyle = 'rgba(16, 185, 129, 0.55)'; // emerald-500
@@ -211,6 +254,8 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
             ? `SN #${tooth.toothNumber}`
             : tooth.uncertain
             ? `?#${tooth.toothNumber}`
+            : tooth.clinicianCorrected
+            ? `✓#${tooth.toothNumber}`
             : `#${tooth.toothNumber}`;
           
           ctx.font = 'bold 11px sans-serif';
@@ -219,6 +264,8 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
             ? 'rgba(124, 58, 237, 0.92)'
             : tooth.uncertain
             ? 'rgba(202, 138, 4, 0.9)'
+            : tooth.clinicianCorrected
+            ? 'rgba(2, 132, 199, 0.92)'
             : 'rgba(5, 150, 105, 0.85)';
           ctx.fillRect(vx, badgeY, textW + 6, 15);
           ctx.fillStyle = '#ffffff';
@@ -425,6 +472,16 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         ctx.lineTo(cWidth, y);
         ctx.stroke();
       }
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        '파노라마 영상을 업로드하여 실추론을 실행하거나 [데모 불러오기 (Load Demo)]를 선택하세요.',
+        cWidth / 2,
+        cHeight / 2
+      );
+      ctx.textAlign = 'start';
     };
 
     const drawWithLetterbox = (img: HTMLImageElement) => {
@@ -496,16 +553,29 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [reportData, blobUrl, imageUrl, showSuspected, verificationStatus, actualHash]);
+  }, [reportData, blobUrl, imageUrl, showSuspected, verificationStatus, actualHash, isDemoMode, uploadedFileHash]);
 
   return (
-    <div className="w-full bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+    <div
+      className={`w-full bg-slate-950 p-4 rounded-xl space-y-3 ${
+        isDemoMode
+          ? 'border-2 border-amber-500/80 shadow-lg shadow-amber-950/30'
+          : verificationStatus === 'mismatch'
+          ? 'border-2 border-rose-500/80 shadow-lg shadow-rose-950/30'
+          : 'border border-slate-800'
+      }`}
+    >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-200 flex items-center space-x-2">
           <span>Panoramic Dual-Threshold Canvas Viewer</span>
           <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-normal">
             Solid: Conf ≥ 45% | Dashed: 20% ~ 45%
           </span>
+          {isDemoMode && (
+            <span className="text-[11px] px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 font-bold">
+              DEMO OVERLAY
+            </span>
+          )}
         </h3>
         <div className="flex items-center space-x-2 text-xs text-slate-400">
           <span>Metadata: {reportData.imageMetadata.width}x{reportData.imageMetadata.height}px</span>
@@ -541,7 +611,11 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           )}
         </div>
       </div>
-      <div className="relative w-full aspect-[2/1] overflow-hidden rounded-lg border border-slate-800 bg-black">
+      <div
+        className={`relative w-full aspect-[2/1] overflow-hidden rounded-lg bg-black ${
+          isDemoMode ? 'border-2 border-amber-500/70' : 'border border-slate-800'
+        }`}
+      >
         <canvas
           ref={canvasRef}
           width={1200}

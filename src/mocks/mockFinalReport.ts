@@ -14,6 +14,53 @@ export const mockFinalReport: FinalReportResponse = {
     preprocessing_id: "PRE-VISTA-AUTO-LETTERBOX-v1",
   },
   findings: {
+    teeth: [
+      {
+        toothNumber: 14,
+        x: 0.368,
+        y: 0.390,
+        w: 0.036,
+        h: 0.145,
+        confidence: 0.94,
+        uncertain: false,
+      },
+      {
+        toothNumber: 15,
+        x: 0.332,
+        y: 0.388,
+        w: 0.035,
+        h: 0.142,
+        confidence: 0.58,
+        uncertain: true,
+      },
+      {
+        toothNumber: 24,
+        x: 0.610,
+        y: 0.385,
+        w: 0.038,
+        h: 0.148,
+        confidence: 0.91,
+        uncertain: false,
+      },
+      {
+        toothNumber: 34,
+        x: 0.600,
+        y: 0.515,
+        w: 0.038,
+        h: 0.150,
+        confidence: 0.89,
+        uncertain: false,
+      },
+      {
+        toothNumber: 47,
+        x: 0.295,
+        y: 0.530,
+        w: 0.048,
+        h: 0.145,
+        confidence: 0.61,
+        uncertain: true,
+      },
+    ],
     caries: [
       {
         x: 0.373,

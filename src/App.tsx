@@ -1,5 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Stethoscope, Layers, CheckCircle2, ShieldAlert, Upload, Loader2, AlertCircle, Eye, EyeOff, Info, Cpu, HardDrive, CheckCircle, AlertTriangle, ChevronRight } from 'lucide-react';
+import {
+  Activity,
+  Stethoscope,
+  Layers,
+  CheckCircle2,
+  ShieldAlert,
+  Upload,
+  Loader2,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Info,
+  Cpu,
+  HardDrive,
+  CheckCircle,
+  AlertTriangle,
+  ChevronRight,
+  RotateCcw,
+  Edit3,
+} from 'lucide-react';
 import { PanoramaCanvasViewer } from './components/PanoramaCanvasViewer';
 import { mockFinalReport } from './mocks/mockFinalReport';
 import { checkHealth, inferPanorama } from './api/client';
@@ -23,6 +42,13 @@ const emptyReport: FinalReportResponse = {
   summary: '',
 };
 
+const VALID_PERMANENT_FDI: number[] = [
+  18, 17, 16, 15, 14, 13, 12, 11,
+  21, 22, 23, 24, 25, 26, 27, 28,
+  48, 47, 46, 45, 44, 43, 42, 41,
+  31, 32, 33, 34, 35, 36, 37, 38,
+];
+
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'analysis'>('analysis');
   const [backendStatus, setBackendStatus] = useState<string>('Checking...');
@@ -38,13 +64,17 @@ export const App: React.FC = () => {
     { id: 'Dental_013', name: '치과 수복물 분류', type: 'YOLOv8 Seg', status: 'ONLINE', weights: 'best_restoration_model.onnx', version: 'v1.0' },
     { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'OsteoMAENet', status: 'ONLINE', weights: 'best.pt', version: 'v1.0 (MCW)' },
   ]);
-  
+
+  // Initial state starts empty (no silent mock data masquerading as live result)
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>('/sample_panorama.png');
+  const [uploadedFileHash, setUploadedFileHash] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [reportData, setReportData] = useState<FinalReportResponse>(mockFinalReport);
+  const [reportData, setReportData] = useState<FinalReportResponse>(emptyReport);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
+  const [editingToothIndex, setEditingToothIndex] = useState<number | null>(null);
+
   const [showSuspected, setShowSuspected] = useState<boolean>(false);
 
   useEffect(() => {
@@ -58,7 +88,7 @@ export const App: React.FC = () => {
           setModulesList(res.modules);
         }
       } catch (err) {
-        setBackendStatus('Disconnected (Mock Mode)');
+        setBackendStatus('Disconnected');
       }
     };
     checkStatus();
@@ -66,22 +96,49 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const computeFileSha256 = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
+      setIsDemoMode(false);
+      setEditingToothIndex(null);
       const objectUrl = URL.createObjectURL(file);
       setImagePreview(objectUrl);
       setErrorMessage(null);
-      // Reset mock data when a real user file is selected to prevent overlay mismatch
-      setReportData(emptyReport);
+      try {
+        const sha256 = await computeFileSha256(file);
+        setUploadedFileHash(sha256);
+      } catch (err) {
+        console.error('Failed to compute SHA-256 of uploaded file:', err);
+        setUploadedFileHash(null);
+      }
     }
   };
 
   const handleLoadDemo = () => {
     setSelectedFile(null);
+    setUploadedFileHash(mockFinalReport.imageMetadata.sha256_hash || null);
     setImagePreview('/sample_panorama.png');
-    setReportData(mockFinalReport);
+    setReportData(structuredClone(mockFinalReport));
+    setIsDemoMode(true);
+    setEditingToothIndex(null);
+    setErrorMessage(null);
+  };
+
+  const handleClearReport = () => {
+    setSelectedFile(null);
+    setUploadedFileHash(null);
+    setImagePreview(null);
+    setReportData(emptyReport);
+    setIsDemoMode(false);
+    setEditingToothIndex(null);
     setErrorMessage(null);
   };
 
@@ -90,6 +147,8 @@ export const App: React.FC = () => {
 
     setIsLoading(true);
     setErrorMessage(null);
+    setIsDemoMode(false);
+    setEditingToothIndex(null);
 
     try {
       const result = await inferPanorama(selectedFile, false);
@@ -104,11 +163,49 @@ export const App: React.FC = () => {
     }
   };
 
+  // Manual FDI correction handler for uncertain or misnumbered teeth
+  const handleManualFdiChange = (toothIndex: number, newFdi: number) => {
+    setReportData((prev) => {
+      if (!prev.findings.teeth || !prev.findings.teeth[toothIndex]) {
+        return prev;
+      }
+      const nextTeeth = prev.findings.teeth.map((t, idx) => {
+        if (idx !== toothIndex) return t;
+        return {
+          ...t,
+          originalToothNumber: t.originalToothNumber ?? t.toothNumber,
+          toothNumber: newFdi,
+          uncertain: false,
+          clinicianCorrected: true,
+        };
+      });
+      return {
+        ...prev,
+        findings: {
+          ...prev.findings,
+          teeth: nextTeeth,
+        },
+      };
+    });
+    setEditingToothIndex(null);
+  };
+
+  // SHA-256 mismatch detection between uploaded file and active report (when not in demo mode)
+  const reportSha256 = reportData.imageMetadata.sha256_hash?.toLowerCase();
+  const isShaMismatchBlocked =
+    !isDemoMode &&
+    Boolean(reportData.reportId) &&
+    Boolean(uploadedFileHash && reportSha256 && uploadedFileHash.toLowerCase() !== reportSha256);
+
   // Clinical Multi-Module Synthesis Calculations
   const cariesCount = reportData.findings.caries?.length || 0;
   const periapicalCount = reportData.findings.periapicalLesions?.length || 0;
   const boneLossCount = reportData.findings.boneLoss?.length || 0;
   const verifiedMissing = reportData.findings.missingTeeth?.verified_missing || [];
+  const detectedTeeth = reportData.findings.teeth || [];
+  const uncertainTeeth = detectedTeeth
+    .map((tooth, index) => ({ tooth, index }))
+    .filter(({ tooth }) => Boolean(tooth.uncertain));
 
   // FDI Tooth Numbers mapping
   const upperRightTeeth = [18, 17, 16, 15, 14, 13, 12, 11];
@@ -138,14 +235,14 @@ export const App: React.FC = () => {
 
     // Fallback: Local synthesis
     const isMissing = verifiedMissing.includes(fdi);
-    const hasPeriapical = reportData.findings.periapicalLesions?.some(p => p.toothNumber === fdi);
-    const cariesItem = reportData.findings.caries?.find(c => c.toothNumber === fdi);
-    const hasBoneLoss = reportData.findings.boneLoss?.some(b => b.toothNumber === fdi);
+    const hasPeriapical = reportData.findings.periapicalLesions?.some((p) => p.toothNumber === fdi);
+    const cariesItem = reportData.findings.caries?.find((c) => c.toothNumber === fdi);
+    const hasBoneLoss = reportData.findings.boneLoss?.some((b) => b.toothNumber === fdi);
 
     if (isMissing) return { label: 'Missing', color: 'bg-slate-800 text-slate-500 border-slate-700' };
     if (hasPeriapical) return { label: 'Periapical', color: 'bg-purple-950/60 text-purple-400 border-purple-800' };
     if (cariesItem) {
-      return cariesItem.confidence >= 0.45 
+      return cariesItem.confidence >= 0.45
         ? { label: 'Caries', color: 'bg-rose-950/60 text-rose-400 border-rose-800' }
         : { label: 'Suspected', color: 'bg-amber-950/60 text-amber-400 border-amber-800' };
     }
@@ -167,6 +264,11 @@ export const App: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center space-x-4 text-xs">
+          {isDemoMode && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full font-bold bg-amber-500/20 text-amber-300 border-2 border-amber-500/60">
+              DEMO DATA MODE
+            </span>
+          )}
           <div className="flex items-center space-x-2 text-slate-400 bg-slate-900 px-3 py-1 rounded-lg border border-slate-800">
             <Cpu className="w-3.5 h-3.5 text-sky-400" />
             <span>GPU: {isGpuAvailable ? 'RTX 4060 Laptop' : 'CPU Mode'}</span>
@@ -174,11 +276,13 @@ export const App: React.FC = () => {
             <HardDrive className="w-3.5 h-3.5 text-amber-400" />
             <span>VRAM Free: {vramFree} GB</span>
           </div>
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full font-medium border ${
-            backendStatus === 'HEALTHY' 
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-          }`}>
+          <span
+            className={`inline-flex items-center px-2.5 py-1 rounded-full font-medium border ${
+              backendStatus === 'HEALTHY'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+            }`}
+          >
             Gateway: {backendStatus}
           </span>
         </div>
@@ -225,7 +329,7 @@ export const App: React.FC = () => {
                   AI Modules Status
                 </span>
                 <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">
-                  {modulesList.filter(m => m.status === 'ONLINE').length}/{modulesList.length} ACTIVE
+                  {modulesList.filter((m) => m.status === 'ONLINE').length}/{modulesList.length} ACTIVE
                 </span>
               </div>
 
@@ -240,16 +344,20 @@ export const App: React.FC = () => {
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-slate-200">{m.id}</span>
-                        <span className={`inline-flex items-center space-x-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                          isOnline 
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                            : isStandby
-                            ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                            : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            isOnline ? 'bg-emerald-400 animate-pulse' : isStandby ? 'bg-amber-400' : 'bg-rose-400'
-                          }`} />
+                        <span
+                          className={`inline-flex items-center space-x-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            isOnline
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : isStandby
+                              ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                              : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isOnline ? 'bg-emerald-400 animate-pulse' : isStandby ? 'bg-amber-400' : 'bg-rose-400'
+                            }`}
+                          />
                           <span>{m.status}</span>
                         </span>
                       </div>
@@ -280,6 +388,49 @@ export const App: React.FC = () => {
         {/* Workspace Main Area */}
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-5xl mx-auto space-y-6">
+            {/* Persistent Top DEMO DATA Warning Banner across tabs whenever isDemoMode is active */}
+            {isDemoMode && (
+              <div className="flex items-center justify-between p-4 bg-amber-500/15 border-2 border-amber-500 rounded-xl text-amber-200 text-xs shadow-lg shadow-amber-950/30">
+                <div className="flex items-center space-x-3">
+                  <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
+                  <div>
+                    <div className="font-bold text-amber-300 text-sm tracking-wide">
+                      DEMO DATA — 실제 환자 판독 결과가 아닌 데모 화면입니다
+                    </div>
+                    <p className="text-slate-300 text-xs mt-0.5">
+                      현재 화면의 영상(`sample_panorama.png`) 및 진단 리포트(`mockFinalReport`)는 기능 시연용 고정 샘플입니다. 실제 환자 판독 시 우측의 초기화 버튼을 누르거나 실제 영상을 업로드하여 추론을 실행하세요.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleClearReport}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/50 font-semibold text-xs whitespace-nowrap transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>데모 리포트 초기화 / 비우기</span>
+                </button>
+              </div>
+            )}
+
+            {/* SHA-256 Hash Mismatch Guard Banner */}
+            {isShaMismatchBlocked && (
+              <div className="flex items-center justify-between p-4 bg-rose-950/60 border-2 border-rose-500 rounded-xl text-rose-200 text-xs shadow-lg shadow-rose-950/40">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+                  <div>
+                    <div className="font-bold text-rose-300 text-sm">
+                      SHA-256 해시 불일치 감지 — 추론 완료 전까지 오버레이 렌더링이 차단되었습니다
+                    </div>
+                    <p className="text-slate-300 text-xs mt-0.5 font-mono">
+                      업로드 파일 SHA-256 ({uploadedFileHash?.slice(0, 12)}...) ≠ 기존 리포트 SHA-256 ({reportSha256?.slice(0, 12)}...)
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-[10px] whitespace-nowrap">
+                  OVERLAY BLOCKED
+                </span>
+              </div>
+            )}
 
             {/* TAB 1: Clinical Multi-Module Synthesis Dashboard */}
             {activeTab === 'dashboard' && (
@@ -357,7 +508,7 @@ export const App: React.FC = () => {
                   <div className="space-y-1">
                     <div className="text-[10px] text-slate-500 font-semibold uppercase px-1">Maxillary Arch (상악 11~28)</div>
                     <div className="grid grid-cols-16 gap-1.5">
-                      {[...upperRightTeeth, ...upperLeftTeeth].map(fdi => {
+                      {[...upperRightTeeth, ...upperLeftTeeth].map((fdi) => {
                         const s = getToothStatus(fdi);
                         return (
                           <div key={fdi} className={`p-2 rounded border text-center ${s.color} transition-all`}>
@@ -373,7 +524,7 @@ export const App: React.FC = () => {
                   <div className="space-y-1 pt-2">
                     <div className="text-[10px] text-slate-500 font-semibold uppercase px-1">Mandibular Arch (하악 48~38)</div>
                     <div className="grid grid-cols-16 gap-1.5">
-                      {[...lowerRightTeeth, ...lowerLeftTeeth].map(fdi => {
+                      {[...lowerRightTeeth, ...lowerLeftTeeth].map((fdi) => {
                         const s = getToothStatus(fdi);
                         return (
                           <div key={fdi} className={`p-2 rounded border text-center ${s.color} transition-all`}>
@@ -398,26 +549,26 @@ export const App: React.FC = () => {
                         const isEmergent = item.priority === 'EMERGENT';
                         const isHigh = item.priority === 'HIGH';
                         const isModerate = item.priority === 'MODERATE';
-                        const badgeColor = isEmergent 
-                          ? 'bg-purple-900 text-purple-200' 
-                          : isHigh 
-                          ? 'bg-rose-900 text-rose-200' 
-                          : isModerate 
-                          ? 'bg-sky-900 text-sky-200' 
+                        const badgeColor = isEmergent
+                          ? 'bg-purple-900 text-purple-200'
+                          : isHigh
+                          ? 'bg-rose-900 text-rose-200'
+                          : isModerate
+                          ? 'bg-sky-900 text-sky-200'
                           : 'bg-slate-800 text-slate-300';
-                        const containerBg = isEmergent 
-                          ? 'bg-purple-950/30 border-purple-800/60 text-purple-300' 
-                          : isHigh 
-                          ? 'bg-rose-950/30 border-rose-800/60 text-rose-300' 
-                          : isModerate 
-                          ? 'bg-sky-950/30 border-sky-800/60 text-sky-300' 
+                        const containerBg = isEmergent
+                          ? 'bg-purple-950/30 border-purple-800/60 text-purple-300'
+                          : isHigh
+                          ? 'bg-rose-950/30 border-rose-800/60 text-rose-300'
+                          : isModerate
+                          ? 'bg-sky-950/30 border-sky-800/60 text-sky-300'
                           : 'bg-slate-900 border-slate-800 text-slate-400';
-                        const iconColor = isEmergent 
-                          ? 'text-purple-400' 
-                          : isHigh 
-                          ? 'text-rose-400' 
-                          : isModerate 
-                          ? 'text-sky-400' 
+                        const iconColor = isEmergent
+                          ? 'text-purple-400'
+                          : isHigh
+                          ? 'text-rose-400'
+                          : isModerate
+                          ? 'text-sky-400'
                           : 'text-slate-500';
 
                         return (
@@ -431,33 +582,9 @@ export const App: React.FC = () => {
                         );
                       })
                     ) : (
-                      <>
-                        {periapicalCount > 0 && (
-                          <div className="p-3 bg-purple-950/30 border border-purple-800/60 rounded-lg flex items-center justify-between text-xs">
-                            <div className="flex items-center space-x-2 text-purple-300">
-                              <span className="px-1.5 py-0.5 rounded bg-purple-900 text-purple-200 font-bold text-[10px]">EMERGENT</span>
-                              <span>치근단 병소 발견 치아: 정밀 방사선 및 근관 치료(Endodontics) 우선 고려 요망.</span>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-purple-400" />
-                          </div>
-                        )}
-                        {cariesCount > 0 && (
-                          <div className="p-3 bg-rose-950/30 border border-rose-800/60 rounded-lg flex items-center justify-between text-xs">
-                            <div className="flex items-center space-x-2 text-rose-300">
-                              <span className="px-1.5 py-0.5 rounded bg-rose-900 text-rose-200 font-bold text-[10px]">HIGH</span>
-                              <span>치아 우식증 확진 치아: 와동 형성 및 보철/수복(Restoration) 치료 권고.</span>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-rose-400" />
-                          </div>
-                        )}
-                        <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-between text-xs text-slate-400">
-                          <div className="flex items-center space-x-2">
-                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px]">PREVENTIVE</span>
-                            <span>정기 치주 스케일링 및 6개월 단위 임상 파노라마 추적 관찰 추천.</span>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-slate-500" />
-                        </div>
-                      </>
+                      <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-between text-xs text-slate-400">
+                        <span>표시할 분석 리포트가 없습니다. 파노라마 영상을 업로드하여 추론하거나 데모를 불러오세요.</span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -469,17 +596,24 @@ export const App: React.FC = () => {
               <div className="space-y-6">
                 {/* Image Upload Area */}
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-4">
-                  <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
-                    <Upload className="w-5 h-5 text-sky-400" />
-                    <span>Panoramic Image Upload & AI Inference</span>
-                  </h3>
-                  
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+                      <Upload className="w-5 h-5 text-sky-400" />
+                      <span>Panoramic Image Upload & AI Inference</span>
+                    </h3>
+                    {uploadedFileHash && (
+                      <span className="text-[11px] font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
+                        File SHA-256: {uploadedFileHash.slice(0, 12)}...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleFileChange}
-                      className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer"
+                      className="block flex-1 min-w-[240px] text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-600 file:text-white hover:file:bg-sky-500 cursor-pointer"
                     />
                     <button
                       onClick={handleRunInference}
@@ -498,9 +632,17 @@ export const App: React.FC = () => {
                     <button
                       onClick={handleLoadDemo}
                       disabled={isLoading}
-                      className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 transition-colors whitespace-nowrap"
+                      className="px-4 py-2 rounded-lg text-sm font-medium border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-colors whitespace-nowrap"
                     >
-                      데모 샘플 불러오기
+                      데모 불러오기 (Load Demo)
+                    </button>
+                    <button
+                      onClick={handleClearReport}
+                      disabled={isLoading || (!reportData.reportId && !imagePreview)}
+                      className="flex items-center space-x-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition-colors whitespace-nowrap"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>데모 리포트 초기화 / 비우기</span>
                     </button>
                   </div>
 
@@ -517,7 +659,7 @@ export const App: React.FC = () => {
                   <div>
                     <h2 className="text-xl font-bold text-white">Clinical Panoramic Viewer</h2>
                     <p className="text-xs text-slate-400">
-                      Report ID: {reportData.reportId} | Patient: {reportData.patientId}
+                      Report ID: {reportData.reportId || 'N/A (No Active Report)'} | Patient: {reportData.patientId || 'N/A'}
                     </p>
                   </div>
 
@@ -542,30 +684,115 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Persistent DEMO / MOCK DATA Warning Banner */}
-                {(!selectedFile || reportData.reportId === 'REP-20260825-001') && (
-                  <div className="flex items-center justify-between p-3.5 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl text-amber-300 text-xs shadow-lg shadow-amber-950/20">
-                    <div className="flex items-center space-x-2.5">
-                      <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
-                      <div>
-                        <span className="font-bold text-amber-300 uppercase tracking-wide mr-2">[DEMO / MOCK SAMPLE DATA]</span>
-                        <span className="text-slate-300">
-                          현재 표시된 영상 및 바운딩 박스는 사전 보정된 데모 예시 데이터이며, 실제 백엔드 AI 모델의 실추론 결과가 아닙니다.
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded-full font-mono border border-amber-500/30 whitespace-nowrap">
-                      MOCK ACTIVE
-                    </span>
-                  </div>
-                )}
-
                 {/* Canvas Viewer */}
-                <PanoramaCanvasViewer 
-                  imageUrl={imagePreview || undefined} 
+                <PanoramaCanvasViewer
+                  imageUrl={imagePreview || undefined}
                   reportData={reportData}
                   showSuspected={showSuspected}
+                  isDemoMode={isDemoMode}
+                  uploadedFileHash={uploadedFileHash}
                 />
+
+                {/* Uncertain Tooth Manual FDI Correction UI */}
+                {detectedTeeth.length > 0 && (
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-semibold text-white flex items-center space-x-2">
+                        <Edit3 className="w-4 h-4 text-sky-400" />
+                        <span>치아 FDI 식별 목록 및 불확실(`uncertain`) 치아 수동 보정</span>
+                      </h3>
+                      <span className="text-xs text-slate-400">
+                        치아 카드를 클릭하여 FDI 번호(`11`~`48`)를 직접 수정할 수 있습니다.
+                      </span>
+                    </div>
+
+                    {uncertainTeeth.length > 0 && (
+                      <div className="p-3.5 bg-amber-950/30 border border-amber-500/40 rounded-lg flex items-center justify-between text-xs text-amber-200">
+                        <div className="flex items-center space-x-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          <span>
+                            FDI 번호 재확인이 필요한 치아(`uncertain: true`)가 {uncertainTeeth.length}개 있습니다: 아래 목록에서 클릭하여 수동 보정하세요.
+                          </span>
+                        </div>
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                          {uncertainTeeth.map(({ tooth }) => `?#${tooth.toothNumber}`).join(', ')}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                      {detectedTeeth.map((tooth, idx) => {
+                        const isEditing = editingToothIndex === idx;
+                        return (
+                          <div
+                            key={`${idx}-${tooth.toothNumber}`}
+                            className={`p-3 rounded-lg border text-xs transition-all ${
+                              tooth.uncertain
+                                ? 'bg-amber-950/25 border-amber-500/60 text-amber-200'
+                                : tooth.clinicianCorrected
+                                ? 'bg-sky-950/30 border-sky-500/60 text-sky-200'
+                                : 'bg-slate-900 border-slate-800 text-slate-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-bold text-sm">
+                                {tooth.uncertain ? `?#${tooth.toothNumber}` : `#${tooth.toothNumber}`}
+                              </span>
+                              {tooth.uncertain && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                                  Uncertain
+                                </span>
+                              )}
+                              {tooth.clinicianCorrected && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold">
+                                  보정됨
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] text-slate-400 mb-2">
+                              Conf: {(tooth.confidence * 100).toFixed(0)}%
+                              {tooth.originalToothNumber && tooth.originalToothNumber !== tooth.toothNumber && (
+                                <span className="ml-1 text-sky-400">(기존 #{tooth.originalToothNumber})</span>
+                              )}
+                            </div>
+
+                            {isEditing ? (
+                              <div className="space-y-1.5">
+                                <select
+                                  aria-label={`FDI selection for tooth ${tooth.toothNumber}`}
+                                  value={tooth.toothNumber}
+                                  onChange={(e) => handleManualFdiChange(idx, Number(e.target.value))}
+                                  className="w-full bg-slate-950 border border-sky-500 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                                >
+                                  {VALID_PERMANENT_FDI.map((fdi) => (
+                                    <option key={fdi} value={fdi}>
+                                      FDI #{fdi}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => setEditingToothIndex(null)}
+                                  className="w-full text-[11px] py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setEditingToothIndex(idx)}
+                                className="w-full py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-[11px] flex items-center justify-center space-x-1 transition-colors"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>FDI 번호 수정</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Findings Summary */}
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-4">
@@ -574,12 +801,11 @@ export const App: React.FC = () => {
                     <span>Diagnostic Summary</span>
                   </h3>
                   <p className="text-sm text-slate-300 leading-relaxed bg-slate-900 p-4 rounded-lg border border-slate-800">
-                    {reportData.summary}
+                    {reportData.summary || '현재 로드된 판독 리포트가 없습니다. 파노라마 영상을 업로드하고 [Run Inference]를 실행하거나 [데모 불러오기 (Load Demo)]를 클릭하세요.'}
                   </p>
                 </div>
               </div>
             )}
-
           </div>
         </main>
       </div>

@@ -43,6 +43,8 @@ export interface DetectedTooth {
   confidence: number;
   uncertain?: boolean;
   isSupernumerary?: boolean;
+  clinicianCorrected?: boolean;
+  originalToothNumber?: number;
 }
 
 export interface RestorationItem {
