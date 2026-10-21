@@ -4,7 +4,7 @@
 
 ## 개요
 `Dental_015` 모듈은 Dental 마이크로서비스 아키텍처(`Dental_001` ~ `Dental_014` 및 `Dental_Panoramic_Reader`)의 진단 분석 결과를 시각화하고 통합 관리하는 전용 임상 웹 프론트엔드 플랫폼입니다.
-Vite, React, TypeScript, TailwindCSS를 기반으로 구축되었으며, 실추론 결과와 데모 데이터를 명확히 분리하고 이미지 무결성(SHA-256) 검증 및 치아 FDI 번호 수동 보정 인터페이스를 제공합니다.
+Vite, React 18, TypeScript, TailwindCSS를 기반으로 구축되었으며, 멀티 모듈 오버레이 합성 화면, 실추론 결과와 데모 데이터의 명시적 분리(`isDemoMode`), 브라우저 내 이미지 무결성(SHA-256) 검증 게이트, 그리고 불확실 치아 FDI 번호 수동 보정 인터페이스를 완비하고 있습니다.
 
 ## 주요 기능
 - [초기 빈 리포트 시작 및 명시적 DEMO 모드 분리 (`isDemoMode`)]:
@@ -15,8 +15,8 @@ Vite, React, TypeScript, TailwindCSS를 기반으로 구축되었으며, 실추�
   - 현재 로드된 이미지의 SHA-256 해시와 리포트 메타데이터(`imageMetadata.sha256_hash`)가 일치하지 않을 경우 오버레이 렌더링을 즉시 차단하고 해시 불일치 경고를 표시합니다.
 - [불확실(`uncertain`) 치아 FDI 수동 보정 UI]:
   - 검출된 치아 목록 및 `uncertain: true` 알림 패널에서 임상의가 개별 치아를 클릭하여 FDI 번호(`11`~`48`)를 직접 수정할 수 있으며, 수정 시 `uncertain: false`, `clinicianCorrected: true` 상태 및 보정 배지(`✓#FDI`)가 즉시 반영됩니다.
-- [32치아 FDI 오돈토그램 및 치료 우선순위 큐 (`ClinicalSynthesis`)]:
-  - 우식(002), 치조골 소실(003), 치아 식별(008), 매복치(009), 결손치(010), 치근단 병소(012), 수복물(013), 골다공증 스크리닝(014) 결과를 통합 시각화합니다.
+- [멀티 모듈 오버레이 및 32치아 FDI 오돈토그램 (`ClinicalSynthesis`)]:
+  - 우식(002), 치조골 소실(003), 치아 식별(008), 매복치(009), 결손치(010), 치근단 병소(012), 수복물(013), 골다공증 스크리닝(014) 멀티 모듈 진단 결과를 단일 캔버스 오버레이와 치료 우선순위 큐로 통합 시각화합니다.
 
 ## 프로젝트 구조
 ```text
@@ -29,9 +29,10 @@ Dental_015/
 │   ├── App.tsx       # 메인 임상 대시보드 및 FDI 수동 보정 컴포넌트
 │   ├── main.tsx      # 애플리케이션 진입점
 │   └── index.css     # TailwindCSS 스타일 정의
+├── tests/            # 프론트엔드 리포트 구조·FDI 범위·SHA-256 검증 단위 테스트 (reportValidation.test.mjs)
 ├── public/           # 정적 에셋 (sample_panorama.png)
 ├── LICENSE           # MIT 라이선스
-├── package.json      # 프로젝트 의존성
+├── package.json      # 프로젝트 의존성 및 스크립트
 └── README.md
 ```
 
@@ -46,19 +47,24 @@ Dental_015/
 npm install
 ```
 
-### 2. 개발 서버 실행
+### 2. 단위 테스트 실행
+```bash
+npm test
+```
+
+### 3. 개발 서버 실행
 ```bash
 npm run dev
 ```
 
-### 3. 프로덕션 빌드
+### 4. 프로덕션 빌드
 ```bash
 npm run build
 ```
 
 ## 샘플 에셋 출처 및 라이선스 (Sample Asset Attribution & License)
 - [샘플 파노라마 영상 (`public/sample_panorama.png`)]:
-  - 출처: DENTEX Challenge Public Dataset Sample (치과 파노라마 방사선 공개 벤치마크 샘플).
+  - 출처: DENTEX Challenge Public Dataset Sample (`DENTEX public sample`, 치과 파노라마 방사선 공개 벤치마크 샘플).
   - 에셋 라이선스: `CC BY-NC-SA 4.0` (비영리·연구 시연 목적).
 - [소스 코드 라이선스]:
-  - 본 저장소의 모든 프론트엔드 소스 코드는 MIT License 하에 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하십시오.
+  - 본 저장소의 모든 프론트엔드 소스 코드는 MIT License ([LICENSE](LICENSE)) 하에 배포됩니다.
