@@ -9,3 +9,28 @@
 - Dental MSA Presentation Layer 이행 및 API 계약 계획서 검토 수락 및 기술 질의서 제출 완료
 - Dental_Panoramic_Reader FastAPI 백엔드 게이트웨이 연동 및 이미지 업로드 UI 구축 완료
 - GitHub main 브랜치 푸시 완료 (83a19aa)
+
+2026-09-03
+- `Dental_Panoramic_Reader` FastAPI 게이트웨이 실시간 연동, 이미지 업로드, 듀얼 임계값(확진 실선 / 의심 점선) 필터링 및 의료용 면책 배너 구현 완료.
+
+2026-09-04
+- AI 모듈 상태 사이드바 패널 및 캔버스 배경 이미지 안정성 보강 완료.
+
+2026-09-17
+- 다중 모듈 임상 종합(Clinical Synthesis) SSOT 바인딩, 32개 치식 오돈토그램 그리드, 레터박스 종횡비 보존 렌더링 및 API 오류 시 목업 폴백 격리 구현 완료.
+- 치아 `#14`, `#24` 크라운 BBox 해부학적 보정, `#45`, `#46` 결손치 표기 및 `#47` 치조골 소실 배지 렌더링 반영 완료.
+
+2026-09-28
+- `ImageMetadata` 내 `sha256_hash` 및 `preprocessing_id` 확장, 실시간 SHA-256 해시 대조 및 불일치 시 오버레이 차단(Fail-Closed) 가드, 캔버스 상단 DEMO 경고 배너 및 검출 치아·보철물·매복치 캔버스 오버레이 레이어 추가 완료.
+
+2026-10-19
+- 과잉치(`supernumerary`) 배지 렌더링 및 골다공증 `NOT_AVAILABLE` 상태 UI 표출 지원 완료.
+
+2026-10-20
+- 이슈 #1 해결: `isDemoMode` 상태 분리 및 상시 경고 배너, 업로드 파일 브라우저 SHA-256 해시 불일치 차단 가드, 불확실(`uncertain`) 치아 수동 FDI 치식(`11`~`48`) 보정 UI 및 MIT `LICENSE` 추가 완료.
+
+2026-10-21
+- 이슈 #2 해결: Node 내장 테스트 러너 기반 프런트엔드 검증 테스트(`tests/reportValidation.test.mjs`) 및 CI 연동, `sample_panorama.png` 출처(`DENTEX`, `CC BY-NC-SA 4.0`) 문서화 완료.
+
+2026-10-25
+- 전 시리즈 개발일지(`development_log.txt`) 단일 표준 양식 통일 완료.
