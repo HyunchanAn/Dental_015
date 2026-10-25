@@ -34,3 +34,4 @@
 
 2026-10-25
 - 전 시리즈 개발일지(`development_log.txt`) 단일 표준 양식 통일 완료.
+- `src/App.tsx` AI 모듈 상태 카드 레이아웃(`flex-wrap`) 및 `STANDBY` 상태 판정 조건 개선, 백엔드 `Dental_003` 실추론 전환에 따른 `8/8 ACTIVE` (`ONLINE`) 연동 확인 완료.

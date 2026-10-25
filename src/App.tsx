@@ -336,7 +336,7 @@ export const App: React.FC = () => {
               <div className="space-y-1.5">
                 {modulesList.map((m) => {
                   const isOnline = m.status === 'ONLINE';
-                  const isStandby = m.status === 'STANDBY';
+                  const isStandby = m.status.startsWith('STANDBY');
                   return (
                     <div
                       key={m.id}
