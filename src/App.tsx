@@ -63,6 +63,7 @@ export const App: React.FC = () => {
     { id: 'Dental_009', name: '매복치 난이도 분석', type: 'Winter Cls', status: 'ONLINE', weights: 'Geometry', version: 'v1.0' },
     { id: 'Dental_013', name: '치과 수복물 분류', type: 'YOLOv8 Seg', status: 'ONLINE', weights: 'best_restoration_model.onnx', version: 'v1.0' },
     { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'OsteoMAENet', status: 'ONLINE', weights: 'best.pt', version: 'v1.0 (MCW)' },
+    { id: 'Dental_011', name: '치아 연령 추정', type: 'ResNet50 Reg', status: 'ONLINE', weights: 'age_resnet50.onnx', version: 'v1.0 (MAE 2.13y)' },
   ]);
 
   // Initial state starts empty (no silent mock data masquerading as live result)
@@ -803,6 +804,16 @@ export const App: React.FC = () => {
                   <p className="text-sm text-slate-300 leading-relaxed bg-slate-900 p-4 rounded-lg border border-slate-800">
                     {reportData.summary || '현재 로드된 판독 리포트가 없습니다. 파노라마 영상을 업로드하고 [Run Inference]를 실행하거나 [데모 불러오기 (Load Demo)]를 클릭하세요.'}
                   </p>
+                  {reportData.findings?.ageEstimation?.predictedAge != null && (
+                    <div className="text-xs text-sky-300 bg-slate-900/80 border border-slate-800 rounded-lg px-4 py-2.5 flex items-center justify-between">
+                      <span>추정 치아 연령 (Dental_011): 약 {reportData.findings.ageEstimation.predictedAge.toFixed(1)}세</span>
+                      {reportData.findings.ageEstimation.confidenceInterval95 && (
+                        <span className="text-slate-400">
+                          95% CI: [{reportData.findings.ageEstimation.confidenceInterval95[0]} ~ {reportData.findings.ageEstimation.confidenceInterval95[1]}세]
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -814,7 +825,7 @@ export const App: React.FC = () => {
       <footer className="fixed bottom-0 left-0 right-0 bg-slate-950 border-t border-slate-800 py-2 px-6 text-center text-xs text-amber-400/90 flex items-center justify-center space-x-2 z-50">
         <Info className="w-4 h-4 flex-shrink-0" />
         <span>
-          본 분석 결과는 진단 보조용 스크리닝 참고 자료이며, 확진 및 개별 치아 처치는 치과의사 전문의의 실체 임상 검진을 따라야 합니다.
+          [비상업 연구용 고지 (Non-Commercial Research Only / CC BY-NC 4.0)] 본 분석 결과는 학술 연구 및 진단 보조용 스크리닝 참고 자료이며, 상업적 의료기기로 사용할 수 없고 확진은 치과의사 전문의의 임상 검진을 따라야 합니다.
         </span>
       </footer>
     </div>

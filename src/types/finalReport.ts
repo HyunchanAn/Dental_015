@@ -1,5 +1,10 @@
 // Standard Final Report Response Schema for Dental MSA (SSOT alignment)
 
+export interface ModuleExecutionStatusEntry {
+  status: 'executed' | 'skipped' | 'unavailable' | string;
+  reason?: string | null;
+}
+
 export interface ImageMetadata {
   width: number;
   height: number;
@@ -7,6 +12,9 @@ export interface ImageMetadata {
   midline_x?: number;
   sha256_hash?: string;
   preprocessing_id?: string;
+  fdiStatus?: string;
+  moduleVersions?: Record<string, string>;
+  moduleExecutionStatus?: Record<string, ModuleExecutionStatusEntry>;
 }
 
 export interface NormalizedBBox {
@@ -31,6 +39,9 @@ export interface NormalizedPolygon {
   confidence: number;
   label: string;
   toothNumber?: number | null;
+  rblPercent?: number | null;
+  lossMm?: number | null;
+  stage?: string | null;
   confidence_level?: 'HIGH' | 'SUSPECTED';
 }
 
@@ -72,6 +83,7 @@ export interface ImpactedToothItem {
 export interface MissingTeethAnalysis {
   verified_missing: number[];
   uncertain_missing: number[];
+  status?: string;
   details?: Array<{
     fdi: number;
     status: string;
@@ -98,6 +110,13 @@ export interface ClinicalSynthesis {
   odontogram: Record<string, OdontogramToothStatus>;
 }
 
+export interface AgeEstimationFinding {
+  predictedAge: number | null;
+  confidenceInterval95?: [number, number] | null;
+  status?: string;
+  model?: string | null;
+}
+
 export interface DiagnosticFindings {
   teeth?: DetectedTooth[];
   supernumeraryTeeth?: DetectedTooth[];
@@ -114,6 +133,8 @@ export interface DiagnosticFindings {
     predictedClass?: string | null;
     probabilities?: Record<string, number> | null;
   };
+  ageEstimation?: AgeEstimationFinding;
+  moduleExecutionStatus?: Record<string, ModuleExecutionStatusEntry>;
   clinicalSynthesis?: ClinicalSynthesis;
 }
 

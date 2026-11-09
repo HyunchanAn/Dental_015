@@ -3,7 +3,7 @@ import { FinalReportResponse } from '../types/finalReport';
 // Realistically calibrated mock report aligning with sample_panorama.png anatomy
 export const mockFinalReport: FinalReportResponse = {
   reportId: "REP-20260825-001",
-  patientId: "PATIENT-78921",
+  patientId: "ANON-1A27E2512FAD",
   timestamp: "2026-08-25T10:30:00Z",
   imageMetadata: {
     filename: "sample_panorama.png",
@@ -69,7 +69,7 @@ export const mockFinalReport: FinalReportResponse = {
         h: 0.050,
         confidence: 0.92,
         label: "Dental Caries",
-        toothNumber: 14, // Anatomically calibrated to #14 crown center in sample_panorama.png
+        toothNumber: 14,
         fdi_label: "FDI-14",
       },
       {
@@ -79,7 +79,7 @@ export const mockFinalReport: FinalReportResponse = {
         h: 0.052,
         confidence: 0.88,
         label: "Dental Caries",
-        toothNumber: 24, // Anatomically calibrated to #24 crown center (distal to #23 canine)
+        toothNumber: 24,
         fdi_label: "FDI-24",
       },
     ],
@@ -93,7 +93,7 @@ export const mockFinalReport: FinalReportResponse = {
         ],
         confidence: 0.85,
         label: "Alveolar Bone Loss",
-        toothNumber: 47, // Calibrated to existing mesially tilted #47 2nd molar angular bone loss
+        toothNumber: 47,
       },
     ],
     periapicalLesions: [
@@ -104,7 +104,7 @@ export const mockFinalReport: FinalReportResponse = {
         h: 0.075,
         confidence: 0.79,
         label: "Periapical Lesion",
-        toothNumber: 34, // FDI-34 (Lower Left 1st Premolar apex)
+        toothNumber: 34,
         fdi_label: "FDI-34",
       },
     ],
@@ -128,6 +128,12 @@ export const mockFinalReport: FinalReportResponse = {
       score: 0.23,
       category: "LOW",
       status: "MOCK_SCREENING",
+    },
+    ageEstimation: {
+      predictedAge: 34.2,
+      confidenceInterval95: [32.82, 35.58],
+      status: "ACTIVE_INFERENCE",
+      model: "ResNet50-AgeRegression-v1",
     },
     clinicalSynthesis: {
       treatmentQueue: [
