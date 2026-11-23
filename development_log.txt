@@ -35,3 +35,9 @@
 2026-10-25
 - 전 시리즈 개발일지(`development_log.txt`) 단일 표준 양식 통일 완료.
 - `src/App.tsx` AI 모듈 상태 카드 레이아웃(`flex-wrap`) 및 `STANDBY` 상태 판정 조건 개선, 백엔드 `Dental_003` 실추론 전환에 따른 `8/8 ACTIVE` (`ONLINE`) 연동 확인 완료.
+
+2026-11-23
+- 이슈 #3 해결 (`[P0] 008 초벌 추론 오버레이 및 오답 교정 저장(HiTL) 우선 구현`) 및 P1/P2 UI 연동(`Dental_013#3`, `Dental_002#9`, `Dental_Panoramic_Reader#20`):
+  - `src/utils/hitlLogic.mjs` 및 `src/types/finalReport.ts`: `Dental_Core` 표준 스키마(`dental_core.panorama_hitl.v1`) 1:1 직렬화·역직렬화(`serializeReportToHiTLGolden`, `hydrateReportFromHiTLGolden`), 치아 및 우식 병변 박스 이동·리사이즈·추가·삭제, 치아별 수복 상태 태그(`Inlay/Onlay`, `Crown/Bridge`, `Implant`, `Endodontic (RCT)`) 토글 로직 구현.
+  - `src/components/PanoramaCanvasViewer.tsx` 및 `src/App.tsx`: Canvas 2D 대화형 HiTL 편집 모드, 008 폴리곤 및 013 치아별 수복 태그 배지 렌더링, 008 Seed JSON 로드 및 골든 JSON 다운로드/서버 저장, 선택적 치주 임상정보 입력 폼 및 누락 데이터 경고 게이트 배너 구현.
+  - `tests/hitlWorkflow.test.mjs` 단위 테스트 추가(`3 passed`) 및 프로덕션 빌드 검증 완료.
