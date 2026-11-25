@@ -1,10 +1,10 @@
-![Status](https://img.shields.io/badge/Status-v1.0.0%20Release-brightgreen "Status") ![React](https://img.shields.io/badge/React-18.3%2B-blue "React") ![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue "TypeScript") ![Vite](https://img.shields.io/badge/Vite-5.0%2B-purple "Vite") ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4%2B-06B6D4 "TailwindCSS") ![License](https://img.shields.io/badge/License-MIT-green "License")
+![Status](https://img.shields.io/badge/Status-v1.0.0%20Release-brightgreen "Status") ![React](https://img.shields.io/badge/React-18.3%2B-blue "React") ![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue "TypeScript") ![Vite](https://img.shields.io/badge/Vite-5.0%2B-purple "Vite") ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4%2B-06B6D4 "TailwindCSS") ![License](https://img.shields.io/badge/License-MIT-green "License") ![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD%20Pipeline-passing-brightgreen?logo=github "CI/CD Pipeline")
 
 # Dental_015: Interactive Clinical Dashboard & Panorama Overlay Viewer (임상 대시보드 및 파노라마 오버레이 뷰어)
 
 ## 개요
 
-`Dental_015` 모듈은 Dental 마이크로서비스 아키텍처(`Dental_001` ~ `Dental_014` 및 `Dental_Panoramic_Reader`)의 진단 분석 결과를 시각화하고 통합 관리하는 전용 임상 웹 프론트엔드 플랫폼입니다. Vite, React 18, TypeScript, TailwindCSS를 기반으로 구축되었으며, 8개 진단 모듈(`8/8 ACTIVE`) 오버레이 합성 화면, 실추론 결과와 데모 데이터의 명시적 분리(`isDemoMode`), 브라우저 내 이미지 무결성(SHA-256) 검증 게이트, 그리고 불확실 치아 FDI 번호 수동 보정 인터페이스를 제공합니다.
+`Dental_015` 모듈은 Dental 마이크로서비스 아키텍처(`Dental_001` ~ `Dental_014` 및 `Dental_Panoramic_Reader`)의 진단 분석 결과를 시각화하고 통합 관리하는 전용 임상 웹 프론트엔드 플랫폼입니다. Vite, React 18, TypeScript, TailwindCSS를 기반으로 구축되었으며, 9개 진단 모듈(`Dental_011` 포함) 오버레이 합성 화면, 실추론 결과와 데모 데이터의 명시적 분리(`isDemoMode`), 브라우저 내 이미지 무결성(SHA-256) 검증 게이트, 그리고 불확실 치아 FDI 번호 수동 보정 인터페이스를 제공합니다.
 
 ---
 
@@ -23,7 +23,7 @@
 - [선택적 치주 임상정보 입력 및 누락 데이터 경고 게이트]:
   - PSI 점수, 탐침 출혈(`BOP %`), 치태지수, 흡연 여부, 당뇨 상태를 선택 입력할 수 있으며, 파노라마 단독 입력 시 확정 치주 위험도 판정을 보류하고 누락 임상 항목 경고 배너를 표출합니다.
 - [멀티 모듈 오버레이 및 32치아 FDI 오돈토그램 (`ClinicalSynthesis`)]:
-  - 우식(`002`), 치조골 소실(`003`), 치아 식별(`008`), 매복치(`009`), 결손치(`010`), 치근단 병소(`012`), 수복물(`013`), 골다공증 스크리닝(`014`) 총 8개 모듈 진단 결과를 단일 캔버스 오버레이(레터박스 종횡비 보존)와 치료 우선순위 큐로 통합 시각화합니다.
+  - 우식(`002`), 치조골 소실(`003`), 치아 식별(`008`), 매복치(`009`), 결손치(`010`), 치아 연령 추정(`011`), 치근단 병소(`012`), 수복물(`013`), 골다공증 스크리닝(`014`) 총 9개 모듈 진단 결과를 단일 캔버스 오버레이(레터박스 종횡비 보존)와 치료 우선순위 큐로 통합 시각화합니다.
 
 ### 2. 프로젝트 구조
 ```text
@@ -33,6 +33,7 @@ Dental_015/
 │   ├── components/   # 파노라마 캔버스 뷰어 (PanoramaCanvasViewer.tsx)
 │   ├── mocks/        # 데모 전용 샘플 리포트 (mockFinalReport.ts)
 │   ├── types/        # TypeScript 리포트 스키마 정의 (finalReport.ts)
+│   ├── utils/        # HiTL 직렬화·무결성·오버레이 편집 유틸리티 (hitlLogic.mjs / hitlLogic.d.ts)
 │   ├── App.tsx       # 메인 임상 대시보드 및 FDI 수동 보정 컴포넌트
 │   ├── main.tsx      # 애플리케이션 진입점
 │   └── index.css     # TailwindCSS 스타일 정의
@@ -47,7 +48,7 @@ Dental_015/
 
 ## 벤치마크 및 검증 성능
 
-- Node 내장 테스트 러너 기반 리포트 스키마 검증(`tests/reportValidation.test.mjs`): `sample_panorama.png` SHA-256 해시 일치 검증 및 성인 FDI 번호 범위(`11`~`48`)·정규화 좌표(`[0.0, 1.0]`) 검증 통과 (`2 passed`).
+- Node 내장 테스트 러너 기반 리포트 스키마 검증(`tests/reportValidation.test.mjs`): `sample_panorama.png` SHA-256 해시 일치 검증, 성인 FDI 번호 범위(`11`~`48`)·정규화 좌표(`[0.0, 1.0]`) 및 HiTL 라운드트립 검증 통과 (`3 passed`).
 - TypeScript 컴파일(`tsc`) 및 Vite 프로덕션 번들 빌드(`vite build`) 무결성 통과.
 
 ---

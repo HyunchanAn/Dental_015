@@ -30,8 +30,7 @@ export function serializeReportToHiTLGolden(
 ): PanoramaHiTLGoldenJson;
 
 export function hydrateReportFromHiTLGolden(
-  golden: PanoramaHiTLGoldenJson,
-  overrideSha256?: string | null
+  golden: PanoramaHiTLGoldenJson
 ): FinalReportResponse;
 
 export function addToothToReport(
@@ -75,3 +74,8 @@ export function deleteCariesBoxFromReport(
   report: FinalReportResponse,
   index: number
 ): FinalReportResponse;
+
+export function findContainingToothFdi(
+  teeth: Array<{ toothNumber: number; x: number; y: number; w: number; h: number }>,
+  normBox: SimpleNormBox
+): number | null;

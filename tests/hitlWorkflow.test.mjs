@@ -116,9 +116,15 @@ test('HiTL seed hydration -> tooth box move/add/delete & restoration tag -> Gold
   assert.deepEqual(golden.teeth[0].restoration_tags, ['Crown/Bridge', 'Endodontic (RCT)']);
   assert.equal(golden.teeth[1].fdi, 29);
   assert.equal(golden.teeth[1].is_supernumerary, true);
-  assert.equal(golden.lesions.length, 1);
-  assert.equal(golden.lesions[0].category, 'caries');
-  assert.equal(golden.lesions[0].fdi, 36);
+  const cariesLesions = golden.lesions.filter((l) => l.category === 'caries');
+  const restLesions = golden.lesions.filter((l) => l.category === 'restoration');
+  assert.equal(cariesLesions.length, 1);
+  assert.equal(cariesLesions[0].fdi, 36);
+  assert.equal(restLesions.length, 2);
+
+  // Security gate: hydrateReportFromHiTLGolden must preserve original sha256_hash without override
+  const rehydrated = hydrateReportFromHiTLGolden(golden);
+  assert.equal(rehydrated.imageMetadata.sha256_hash, golden.image_meta.sha256_hash);
 
   // Test deleting caries box
   report = deleteCariesBoxFromReport(report, 0);

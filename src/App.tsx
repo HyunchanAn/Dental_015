@@ -77,15 +77,15 @@ export const App: React.FC = () => {
   const [isGpuAvailable, setIsGpuAvailable] = useState<boolean>(false);
   const [vramFree, setVramFree] = useState<number>(0);
   const [modulesList, setModulesList] = useState<ModuleStatusItem[]>([
-    { id: 'Dental_008', name: '치아 식별 및 FDI 분할', type: 'YOLOv8 Seg', status: 'ONLINE', weights: 'yolov8m_best.pt', version: 'Tooth Cls' },
-    { id: 'Dental_002', name: '치아 우식증 (2-Stage)', type: 'YOLO Patch', status: 'ONLINE', weights: 'best_patch.onnx', version: 'Precision 83%' },
-    { id: 'Dental_012', name: '치근단 병소 (음성증강)', type: 'YOLO11s', status: 'ONLINE', weights: 'best.onnx', version: 'mAP 73.7%' },
-    { id: 'Dental_010', name: '결손치 식별 및 갭', type: 'Heuristic', status: 'ONLINE', weights: 'Rule-based', version: 'Dynamic Mid' },
-    { id: 'Dental_003', name: '치조골 소실 계측', type: 'Masking', status: 'ONLINE', weights: 'Core', version: 'v1.0' },
-    { id: 'Dental_009', name: '매복치 난이도 분석', type: 'Winter Cls', status: 'ONLINE', weights: 'Geometry', version: 'v1.0' },
-    { id: 'Dental_013', name: '치과 수복물 분류', type: 'YOLOv8 Seg', status: 'ONLINE', weights: 'best_restoration_model.onnx', version: 'v1.0' },
-    { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'OsteoMAENet', status: 'ONLINE', weights: 'best.pt', version: 'v1.0 (MCW)' },
-    { id: 'Dental_011', name: '치아 연령 추정', type: 'ResNet50 Reg', status: 'ONLINE', weights: 'age_resnet50.onnx', version: 'v1.0 (MAE 2.13y)' },
+    { id: 'Dental_008', name: '치아 식별 및 FDI 분할', type: 'YOLOv8 Seg', status: 'OFFLINE', weights: 'yolov8m_best.pt', version: 'Tooth Cls' },
+    { id: 'Dental_002', name: '치아 우식증 (2-Stage)', type: 'YOLO Patch', status: 'OFFLINE', weights: 'best_refined.onnx', version: 'Precision 83%' },
+    { id: 'Dental_012', name: '치근단 병소 (음성증강)', type: 'YOLO11s', status: 'OFFLINE', weights: 'best.onnx', version: 'mAP 73.7%' },
+    { id: 'Dental_010', name: '결손치 식별 및 갭', type: 'Heuristic', status: 'OFFLINE', weights: 'Rule-based', version: 'Dynamic Mid' },
+    { id: 'Dental_003', name: '치조골 소실 계측', type: 'Masking', status: 'OFFLINE', weights: 'Core', version: 'v1.0' },
+    { id: 'Dental_009', name: '매복치 난이도 분석', type: 'Winter Cls', status: 'OFFLINE', weights: 'Geometry', version: 'v1.0' },
+    { id: 'Dental_013', name: '치과 수복물 분류', type: 'EfficientNet/YOLO', status: 'OFFLINE', weights: 'best_restoration_model.onnx', version: 'v1.0' },
+    { id: 'Dental_014', name: '골다공증 위험 스크리닝', type: 'OsteoMAENet', status: 'OFFLINE', weights: 'best.pt', version: 'v1.0 (MCW)' },
+    { id: 'Dental_011', name: '치아 연령 추정', type: 'ResNet50 Reg', status: 'OFFLINE', weights: 'best_hybrid_age_model.onnx', version: 'v1.0 (MAE 2.13y)' },
   ]);
 
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
@@ -170,10 +170,16 @@ export const App: React.FC = () => {
       setIsDemoMode(false);
       setEditingToothIndex(null);
       setSelectedTarget(null);
-      const objectUrl = URL.createObjectURL(file);
-      setImagePreview(objectUrl);
+      const isDicomFile = /\.(dcm|dicom)$/i.test(file.name);
+      if (isDicomFile) {
+        setImagePreview(null);
+        setStatusNotice('DICOM 파일이 선택되었습니다. [Analyze] 실행 시 서버에서 PHI 제거 후 프리뷰 이미지를 반환합니다.');
+      } else {
+        const objectUrl = URL.createObjectURL(file);
+        setImagePreview(objectUrl);
+        setStatusNotice(null);
+      }
       setErrorMessage(null);
-      setStatusNotice(null);
       try {
         const sha256 = await computeFileSha256(file);
         setUploadedFileHash(sha256);
@@ -191,7 +197,7 @@ export const App: React.FC = () => {
       const text = await jsonFile.text();
       const parsed = JSON.parse(text);
       if (parsed.schema_version && parsed.image_meta) {
-        const hydrated = hydrateReportFromHiTLGolden(parsed as PanoramaHiTLGoldenJson, uploadedFileHash);
+        const hydrated = hydrateReportFromHiTLGolden(parsed as PanoramaHiTLGoldenJson);
         setReportData(hydrated);
         setHitlEditMode(true);
         setErrorMessage(null);
@@ -280,6 +286,9 @@ export const App: React.FC = () => {
     try {
       const result = await inferPanorama(selectedFile, false, clinicalMeta);
       setReportData(result);
+      if (result.imageMetadata?.previewImageDataUrl) {
+        setImagePreview(result.imageMetadata.previewImageDataUrl);
+      }
     } catch (err) {
       console.warn('API Call failed:', err);
       setErrorMessage('백엔드 AI 추론 호출에 실패했습니다. (게이트웨이 연결, API 토큰 및 모델 가동 상태를 확인하세요)');
@@ -386,6 +395,8 @@ export const App: React.FC = () => {
           return { label: 'BoneLoss', color: 'bg-sky-950/60 text-sky-400 border-sky-800' };
         case 'Restored':
           return { label: 'Restored', color: 'bg-teal-950/60 text-teal-300 border-teal-700' };
+        case 'Impacted':
+          return { label: 'Impacted', color: 'bg-orange-950/60 text-orange-300 border-orange-700' };
         default:
           return { label: 'Sound', color: 'bg-emerald-950/40 text-emerald-400 border-emerald-900/60' };
       }
@@ -396,6 +407,7 @@ export const App: React.FC = () => {
     const cariesItem = reportData.findings.caries?.find((c) => c.toothNumber === fdi);
     const hasBoneLoss = reportData.findings.boneLoss?.some((b) => b.toothNumber === fdi);
     const hasRest = hasToothRestTag || reportData.findings.restorations?.some((r) => r.toothNumber === fdi);
+    const isImpacted = reportData.findings.impactedTeeth?.some((imp) => imp.toothNumber === fdi);
 
     if (isMissing) return { label: 'Missing', color: 'bg-slate-800 text-slate-500 border-slate-700' };
     if (hasPeriapical) return { label: 'Periapical', color: 'bg-purple-950/60 text-purple-400 border-purple-800' };
@@ -404,6 +416,7 @@ export const App: React.FC = () => {
         ? { label: 'Caries', color: 'bg-rose-950/60 text-rose-400 border-rose-800' }
         : { label: 'Suspected', color: 'bg-amber-950/60 text-amber-400 border-amber-800' };
     }
+    if (isImpacted) return { label: 'Impacted', color: 'bg-orange-950/60 text-orange-300 border-orange-700' };
     if (hasRest) return { label: 'Restored', color: 'bg-teal-950/60 text-teal-300 border-teal-700' };
     if (hasBoneLoss) return { label: 'BoneLoss', color: 'bg-sky-950/60 text-sky-400 border-sky-800' };
     return { label: 'Sound', color: 'bg-emerald-950/40 text-emerald-400 border-emerald-900/60' };
@@ -848,6 +861,24 @@ export const App: React.FC = () => {
                           <option value="controlled">조절됨 (HbA1c &lt; 7.0%)</option>
                           <option value="uncontrolled">비조절 (HbA1c &gt;= 7.0%)</option>
                         </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 mb-1">당화혈색소 HbA1c (%)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min={3}
+                          max={20}
+                          value={clinicalMeta.hba1cPercent ?? ''}
+                          onChange={(e) =>
+                            setClinicalMeta({
+                              ...clinicalMeta,
+                              hba1cPercent: e.target.value === '' ? null : Number(e.target.value),
+                            })
+                          }
+                          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white"
+                          placeholder="예: 6.5 (선택)"
+                        />
                       </div>
                       <div>
                         <label className="block text-slate-400 mb-1">치태지수 Plaque Index (%)</label>

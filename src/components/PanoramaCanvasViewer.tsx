@@ -597,9 +597,13 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
           ? true
           : box.clinicalStatus
           ? box.clinicalStatus === 'DEFINITE'
-          : conf >= 0.5;
-        const isSuspected = !isHighConf && (box.clinicalStatus ? box.clinicalStatus === 'REVIEW_REQUIRED' : conf >= 0.25);
+          : conf >= 0.45;
+        const isSuspected =
+          !isHighConf &&
+          (box.clinicalStatus ? box.clinicalStatus === 'REVIEW_REQUIRED' : conf >= 0.25);
 
+        // Hide sub-threshold (< 0.25) boxes completely and hide suspected boxes when toggle is off
+        if (!isHighConf && !isSuspected && !hitlEditMode) return;
         if (isSuspected && !showSuspected && !hitlEditMode) return;
 
         const vx = offsetX + box.x * drawWidth;
@@ -676,8 +680,9 @@ export const PanoramaCanvasViewer: React.FC<PanoramaCanvasViewerProps> = ({
         reportData.findings.boneLoss.forEach((poly) => {
           if (poly.points.length === 0) return;
           const isHighConf = poly.confidence >= 0.45;
-          const isSuspected = poly.confidence >= 0.2 && poly.confidence < 0.45;
+          const isSuspected = poly.confidence >= 0.25 && poly.confidence < 0.45;
 
+          if (!isHighConf && !isSuspected) return;
           if (isSuspected && !showSuspected) return;
 
           ctx.beginPath();

@@ -69,4 +69,11 @@ export const saveHiTLGoldenToServer = async (
   return res.data;
 };
 
+export const fetchHiTLGoldenFromServer = async (
+  documentId: string
+): Promise<PanoramaHiTLGoldenJson> => {
+  const res = await apiClient.get<PanoramaHiTLGoldenJson>(`/hitl/${encodeURIComponent(documentId)}`);
+  return res.data;
+};
+
 export default apiClient;

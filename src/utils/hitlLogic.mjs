@@ -168,11 +168,12 @@ export function serializeReportToHiTLGolden(report, annotator = 'clinician_015')
   };
 }
 
-export function hydrateReportFromHiTLGolden(golden, overrideSha256 = null) {
+export function hydrateReportFromHiTLGolden(golden) {
   const im = golden.image_meta || {};
   const w = Math.max(1, Number(im.width) || 2000);
   const h = Math.max(1, Number(im.height) || 1000);
-  const effectiveHash = overrideSha256 || im.sha256_hash || '';
+  // Security gate: preserve original golden sha256_hash without overriding so cross-patient mismatches are blocked
+  const effectiveHash = im.sha256_hash || '';
 
   const teeth = (golden.teeth || []).map((t) => {
     const nb = pxXyxyToNormBox(t.bbox_xyxy, w, h);
@@ -362,22 +363,59 @@ export function deleteToothFromReport(report, index) {
 export function toggleToothRestorationTag(report, index, tag) {
   const prevTeeth = report.findings?.teeth || [];
   if (index < 0 || index >= prevTeeth.length) return report;
+  let targetTooth = null;
+  let added = false;
   const nextTeeth = prevTeeth.map((t, idx) => {
     if (idx !== index) return t;
     const curr = new Set(t.restorationTags || []);
-    if (curr.has(tag)) curr.delete(tag);
-    else curr.add(tag);
-    return {
+    if (curr.has(tag)) {
+      curr.delete(tag);
+      added = false;
+    } else {
+      curr.add(tag);
+      added = true;
+    }
+    targetTooth = {
       ...t,
       restorationTags: [...curr],
       clinicianCorrected: true,
     };
+    return targetTooth;
   });
+
+  const prevRests = report.findings?.restorations || [];
+  let nextRests = prevRests;
+  if (targetTooth) {
+    const fdi = targetTooth.toothNumber;
+    if (added) {
+      const exists = prevRests.some((r) => r.toothNumber === fdi && r.type === tag);
+      if (!exists) {
+        nextRests = [
+          ...prevRests,
+          {
+            toothNumber: fdi,
+            type: tag,
+            confidence: 1.0,
+            x: targetTooth.x,
+            y: targetTooth.y,
+            w: targetTooth.w,
+            h: targetTooth.h,
+            clinicianCorrected: true,
+          },
+        ];
+      }
+    } else {
+      nextRests = prevRests.filter((r) => !(r.toothNumber === fdi && r.type === tag));
+    }
+  }
+
   return {
     ...report,
     findings: {
       ...report.findings,
       teeth: nextTeeth,
+      supernumeraryTeeth: nextTeeth.filter((t) => t.isSupernumerary),
+      restorations: nextRests,
     },
   };
 }

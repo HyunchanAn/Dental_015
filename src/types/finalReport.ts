@@ -16,6 +16,7 @@ export interface ImageMetadata {
   source_format?: string;
   pixel_spacing_mm?: [number, number] | null;
   is_calibrated?: boolean;
+  previewImageDataUrl?: string;
   moduleVersions?: Record<string, string>;
   moduleExecutionStatus?: Record<string, ModuleExecutionStatusEntry>;
 }
@@ -152,6 +153,7 @@ export interface PeriodontalRiskAssessment {
   riskLevel?: 'LOW' | 'MODERATE' | 'HIGH' | null;
   visionEvidenceSummary?: string;
   recommendations?: string[];
+  hallucinationGuardBlockedClaims?: string[];
 }
 
 export interface DiagnosticFindings {
